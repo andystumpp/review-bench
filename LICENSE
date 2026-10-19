@@ -1,0 +1,15 @@
+Review Bench
+Copyright (c) 2026 Andy Stumpp. All rights reserved.
+
+You may use this GitHub Action, unmodified and referenced from this repository
+(for example `uses: andystumpp/review-bench@v1`), in your own repositories and
+workflows, including for commercial work, and you may keep and share the
+reports it produces.
+
+You may not copy, modify, redistribute, sublicense or sell this software or any
+part of it (including its prompts, principles and report page), or build a
+derivative work from it, without written permission from the copyright holder.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM THE SOFTWARE OR ITS USE.

@@ -1,0 +1,25 @@
+/* plain look for work: no logo, no glow, system font, one quiet accent */
+:root[data-look="plain"] {
+  --bg:#F7F7F8; --surface:#FFFFFF; --surface2:#F1F2F4; --line:#E3E5E8; --line2:#CDD1D6;
+  --ink:#1B1F24; --muted:#5E6670; --dim:#A3AAB2;
+  --amber:#2B5C8A; --amberBg:#E8EFF6; --violet:#4E5D6C; --violetBg:#EEF0F3; --mint:#3D7A5C; --coral:#B3372B; --hi:#EEF2F6;
+  --glowA:transparent; --glowV:transparent; --gridLn:transparent; --glassBar:rgba(247,247,248,.92);
+  --sans:"Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  --mono:"Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
+  color-scheme: light;
+}
+:root[data-look="plain"] pre, :root[data-look="plain"] code { font-family:"Cascadia Mono", Consolas, ui-monospace, monospace; }
+:root[data-look="plain"] .logo, :root[data-look="plain"] .brand, :root[data-look="plain"] #themeBtn { display:none; }
+:root[data-look="plain"] .ov-hero::before, :root[data-look="plain"] .land-top::before { display:none; }
+:root[data-look="plain"] .ov-hero { padding:20px 24px; }
+:root[data-look="plain"] .ov-hero h1 { font-size:24px; font-weight:600; letter-spacing:-.01em; max-width:none; }
+:root[data-look="plain"] h1, :root[data-look="plain"] h2 { font-weight:600; letter-spacing:-.01em; }
+:root[data-look="plain"] .eyebrow { letter-spacing:.06em; }
+:root[data-look="plain"] .live, :root[data-look="plain"] .live.glow { box-shadow:none; }
+:root[data-look="plain"] .bar i { background:var(--amber); }
+:root[data-look="plain"] .cstage { background:var(--surface2); }
+:root[data-look="plain"] .rb-foot { display:block; }
+.rb-foot { display:none; max-width:1280px; margin:40px auto 24px; padding-inline:24px; font-size:12px; color:var(--muted); }
+:root[data-look="plain"] .ov { --g:linear-gradient(var(--amber),var(--amber)); }
+:root[data-look="plain"] .hero h1 { font-size:30px; font-weight:600; letter-spacing:-.01em; }
+:root[data-look="plain"] .promises-p.todo, :root[data-look="plain"] .panel.recordp { background:var(--surface); }
