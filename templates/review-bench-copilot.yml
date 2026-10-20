@@ -1,0 +1,41 @@
+# Copy to .github/workflows/review-bench.yml
+# Needs a repository secret COPILOT_TOKEN: a token for an account with GitHub Copilot
+# (a fine-grained personal access token with the "Copilot Requests" permission).
+name: Review Bench report
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Copilot model (empty lets Copilot pick)"
+        default: ""
+      look:
+        description: "Look of report.html"
+        type: choice
+        options: [plain, full]
+        default: plain
+      fresh:
+        description: "Start over: trace every journey again, ignoring the last report"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: review-bench
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: andystumpp/review-bench@v1
+        with:
+          agent: copilot
+          token: ${{ secrets.COPILOT_TOKEN }}
+          model: ${{ inputs.model }}
+          look: ${{ inputs.look || 'plain' }}
+          fresh: ${{ inputs.fresh || false }}

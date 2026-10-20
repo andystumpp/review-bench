@@ -1,0 +1,44 @@
+# Copy to .github/workflows/review-bench.yml
+# Needs a repository secret ANTHROPIC_API_KEY.
+name: Review Bench report
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "Claude model (sonnet is cheaper, opus is stronger)"
+        default: sonnet
+      budget:
+        description: "Most this run may spend, in US dollars"
+        default: "3"
+      look:
+        description: "Look of report.html"
+        type: choice
+        options: [full, plain]
+        default: full
+      fresh:
+        description: "Start over: trace every journey again, ignoring the last report"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency: review-bench
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: andystumpp/review-bench@v1
+        with:
+          agent: claude
+          token: ${{ secrets.ANTHROPIC_API_KEY }}
+          model: ${{ inputs.model || 'sonnet' }}
+          budget: ${{ inputs.budget || '3' }}
+          look: ${{ inputs.look || 'full' }}
+          fresh: ${{ inputs.fresh || false }}

@@ -1,0 +1,135 @@
+name: Review Bench report
+description: Every decision your code makes, journey by journey, in plain words. Publishes report.html to a branch and to the run.
+author: Andy Stumpp
+branding:
+  icon: eye
+  color: purple
+
+inputs:
+  agent:
+    description: "Which AI reads the code: claude (Claude Code, needs an Anthropic API key) or copilot (GitHub Copilot CLI, needs a token with Copilot access)"
+    default: claude
+  token:
+    description: "The agent's key: an Anthropic API key for claude, a GitHub token with Copilot access for copilot"
+    required: true
+  model:
+    description: "Model name. Empty picks the agent's default: sonnet for claude, Copilot's own pick for copilot"
+    default: ""
+  budget:
+    description: "Most one run may spend, in US dollars (claude only; Copilot counts premium requests instead)"
+    default: "3"
+  look:
+    description: "Look of report.html: full, or plain (quiet, for work)"
+    default: full
+  fresh:
+    description: "Start over: trace every journey again, ignoring the last report"
+    default: "false"
+  branch:
+    description: "Branch the report is published to. Empty publishes only to the run page"
+    default: loupe-report
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 20
+
+    - name: Get the engine and the last report
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        rm -rf .loupe/engine && mkdir -p .loupe && cp -r "$GITHUB_ACTION_PATH/engine" .loupe/engine
+        if [ -n "$BRANCH" ] && git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+          git fetch --depth 1 origin "$BRANCH"
+          mkdir -p .loupe/prev
+          git show FETCH_HEAD:report.json > .loupe/prev/report.json || rm -f .loupe/prev/report.json
+        fi
+
+    - name: Plan
+      id: plan
+      shell: bash
+      env:
+        FRESH: ${{ inputs.fresh }}
+      run: node .loupe/engine/assemble.mjs plan
+
+    # Stops at the budget. Whatever was traced by then is published; journeys
+    # left over are traced on the next run.
+    - name: Map and trace (Claude)
+      if: steps.plan.outputs.run == 'true' && inputs.agent == 'claude'
+      continue-on-error: true
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.token }}
+        MODEL: ${{ inputs.model || 'sonnet' }}
+        BUDGET: ${{ inputs.budget }}
+      run: |
+        npm install -g @anthropic-ai/claude-code
+        claude -p "$(cat .loupe/engine/run.md)" \
+          --model "$MODEL" \
+          --max-budget-usd "$BUDGET" \
+          --max-turns 200 \
+          --output-format stream-json --verbose \
+          --allowedTools "Read,Glob,Grep,Edit(.loupe/work/**),Bash(node .loupe/engine/assemble.mjs check)" \
+          | node .loupe/engine/assemble.mjs progress
+
+    - name: Map and trace (Copilot)
+      if: steps.plan.outputs.run == 'true' && inputs.agent == 'copilot'
+      continue-on-error: true
+      shell: bash
+      env:
+        COPILOT_GITHUB_TOKEN: ${{ inputs.token }}
+        MODEL: ${{ inputs.model }}
+      run: |
+        npm install -g @github/copilot
+        copilot -p "$(cat .loupe/engine/run.md)" ${MODEL:+--model "$MODEL"} \
+          --allow-all-tools \
+          --deny-tool 'shell(git)' --deny-tool 'shell(gh)' --deny-tool 'shell(curl)' --deny-tool 'shell(wget)' --deny-tool 'shell(rm)'
+
+    # Also runs on quiet days, so report.html follows the latest engine and look.
+    - name: Build the report
+      id: build
+      if: steps.plan.outputs.run == 'true' || hashFiles('.loupe/prev/report.json') != ''
+      shell: bash
+      env:
+        LOOK: ${{ inputs.look }}
+        FRESH: ${{ inputs.fresh }}
+      run: |
+        if [ "${{ steps.plan.outputs.run }}" = "true" ]; then
+          node .loupe/engine/assemble.mjs check || echo "::warning::Check failed. Journeys without a valid trace keep last run's tree."
+        fi
+        node .loupe/engine/assemble.mjs build
+        echo "built=true" >> "$GITHUB_OUTPUT"
+
+    - name: Attach report.html to this run
+      if: steps.build.outputs.built == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: review-bench-report
+        path: .loupe/report/report.html
+
+    - name: Publish to the report branch
+      if: steps.build.outputs.built == 'true' && inputs.branch != ''
+      shell: bash
+      env:
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        git config user.name "Review Bench"
+        git config user.email "review-bench@users.noreply.github.com"
+        pub="$RUNNER_TEMP/pub"
+        if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null; then
+          git fetch --depth 1 origin "$BRANCH"
+          git worktree add --detach "$pub" FETCH_HEAD
+        else
+          git worktree add --detach "$pub"
+          git -C "$pub" checkout --orphan "$BRANCH"
+          git -C "$pub" rm -rfq .
+        fi
+        cp .loupe/report/report.json "$pub/report.json"
+        cp .loupe/report/report.md "$pub/README.md"
+        [ -f .loupe/report/report.html ] && cp .loupe/report/report.html "$pub/report.html"
+        git -C "$pub" add -A
+        if git -C "$pub" diff --cached --quiet; then echo "Report unchanged."; exit 0; fi
+        git -C "$pub" commit -qm "Review Bench report $(date -u +%F) for ${GITHUB_SHA::7}"
+        git -C "$pub" push origin "HEAD:refs/heads/$BRANCH"
