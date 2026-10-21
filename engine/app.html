@@ -965,11 +965,13 @@ const TAGS = { W:'saves data', I:'can’t undo', $:'costs $', U:'screen only' };
 const DEMO = null;
 
 // ---------- state ----------
+// the Overview and search views: names no journey can have (journey ids are letters, digits, - and _)
+const OV = '@overview', USES = '@search';
 const st = {
   proj: null,          // analysis: {key, app, places, components, flows, demo?}
   files: null,         // Map path -> text (only for analyzed uploads, in memory)
   briefs: [],          // [{path,text}]
-  view: 'map',
+  view: OV,
   sel: null,           // {flow, idx}
   comp: null,
   review: {},
@@ -1060,7 +1062,7 @@ function navHtml(mini) {
   const p = st.proj, user = p.flows.filter(f => !f.server), srv = p.flows.filter(f => f.server);
   const b = f => { const j = journeyStats(f);
     return `<button role="tab" aria-selected="${st.view === f.id}" data-view="${esc(f.id)}" title="${esc(f.title)}${j.n ? ` · ${j.done} of ${j.n} reviewed` : ' · not read yet'}">${ring(j)}${esc(f.tab)}</button>`; };
-  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === 'map'}" data-view="map">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === 'uses'}" data-view="uses">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + srv.map(b).join('') : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
+  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === OV}" data-view="${OV}">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === USES}" data-view="${USES}">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + srv.map(b).join('') : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
 }
 function render() {
   const p = st.proj;
@@ -1074,9 +1076,9 @@ function render() {
   const unasked = ds.filter(x => x.n.prov === 'unasked').length;
   $('#barFill').style.width = ds.length ? (100 * signed / ds.length) + '%' : '0';
   $('#progText').innerHTML = `<b>${signed}</b> / ${ds.length} signed · <span class="am">${unasked} ?</span> not in spec`;
-  if (st.view === 'uses' && !st.reach) st.view = 'map';
-  const f = st.view === 'map' ? null : p.flows[flowIdx(st.view)];
-  $('#main').innerHTML = (st.view === 'uses' ? navHtml() + renderUses() : f ? renderFlow(f) : navHtml() + renderMap()) +
+  if (st.view === USES && !st.reach) st.view = OV;
+  const f = st.view === OV ? null : p.flows[flowIdx(st.view)];
+  $('#main').innerHTML = (st.view === USES ? navHtml() + renderUses() : f ? renderFlow(f) : navHtml() + renderMap()) +
     `<p class="footnote">${p.demo
       ? 'Demo data is transcribed from the Review Bench v16 mockup of Restock. Test cases and the settings are scripted from that mockup; moving a setting re-runs the cases against the new value, it does not change any code. Source lines are not loaded in the demo. Sign-offs are kept in this browser.'
       : 'Map, flow trees and test cases are written by an AI reading your code, so treat them as a reviewer’s first read, not ground truth. Every decision links to the lines it cites; check them. Moving a setting re-runs the test cases on paper, not the code. Sign-offs are kept in this browser, per project.'}</p>`;
@@ -1457,7 +1459,7 @@ function renderFlow(f) {
     const can = !!sample && !p.demo && st.files;
     return navHtml() + head + arch + `<div class="panel empty">${st.busy && st.busyFlow === f.id
       ? `<h3><span class="spinner"></span>Tracing this flow</h3><p>${AI} is reading ${(f.files || []).length} files and writing the decision tree. This usually takes 30 to 90 seconds.</p><div class="stream">${esc(st.streamText.slice(-600))}</div>`
-      : can && promisesPending() ? `<h3>Check the promises first</h3><p>Every decision in this flow is compared against what your app promises. Look over that list on the Overview, then come back.</p><p><button class="btn primary" type="button" data-view="map">Check the promises</button></p>`
+      : can && promisesPending() ? `<h3>Check the promises first</h3><p>Every decision in this flow is compared against what your app promises. Look over that list on the Overview, then come back.</p><p><button class="btn primary" type="button" data-view="${OV}">Check the promises</button></p>`
       : st.traceN ? `<h3><span class="spinner"></span>Queued</h3><p>Flows are tracing one after another (${st.traceN[0]} of ${st.traceN[1]} right now). This one is next in line.</p>`
       : can ? `<h3>Not traced yet</h3><p>${AI} reads the files on this path and writes every fork it finds, with the lines behind it.</p><p><button class="btn primary" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Trace ${esc(f.tab)}</button></p>`
       : `<h3>Not traced yet</h3><p>${REPORT_ONLY ? 'The next run traces this journey.' : st.files ? 'Asking ' + AI + ' is not available in this view.' : 'Open the code folder again to trace this flow; source files are not kept between visits.'}</p>`}</div>`;
@@ -1585,7 +1587,7 @@ window.addEventListener('resize', () => { measure(); if (typeof placeSheet === '
 const SHEET = $('#sheet'), SB = $('#sheetBody');
 // in a flow view the sheet sits in the grid as a third column; on the Map it slides over the page
 function placeSheet(pre) {
-  const open = pre || SHEET.classList.contains('open'), flow = open && st.src && st.proj && st.view !== 'map';
+  const open = pre || SHEET.classList.contains('open'), flow = open && st.src && st.proj && st.view !== OV;
   // narrow screens (flow view): under the tree. Wide: the phone steps aside, the tree glides into its spot at the same width,
   // and the detail slides out from behind the tree's right edge. Anywhere else it slides over the page from the right.
   const col = flow && innerWidth <= 980, fg = flow && !col && $('#fgrid'), rail = fg && fg.querySelector('.rail'), tr = fg && $('#tree');
@@ -1745,7 +1747,7 @@ function markText(root, q) {
   }
 }
 function applyFilter(jump) {
-  const f = st.view === 'map' ? null : st.proj.flows[flowIdx(st.view)], T = $('#tree'); if (!f || !T || !f.nodes) return;
+  const f = st.view === OV ? null : st.proj.flows[flowIdx(st.view)], T = $('#tree'); if (!f || !T || !f.nodes) return;
   const q = (st.tfilter || '').trim().toLowerCase();
   const cnt = $('#tfcount'), oth = $('#tfother');
   const hits = q ? new Set(filterHits(f, q)) : new Set();
@@ -1766,13 +1768,13 @@ document.addEventListener('click', e => {
   const b = e.target.closest('[data-rgo],[data-rclear],[data-rshow]'); if (!b || !st.proj) return;
   const refresh = () => st.sel && SHEET.classList.contains('open') ? openNode(st.sel.flow, st.sel.idx) : render();
   if (b.dataset.rgo) { go(b.dataset.rgo); return; }
-  if (b.hasAttribute('data-rclear')) { st.reach = null; if (st.view === 'uses') { go('map'); return; } refresh(); return; }
+  if (b.hasAttribute('data-rclear')) { st.reach = null; if (st.view === USES) { go(OV); return; } refresh(); return; }
   const t = st.sel && (st.proj.conv?.[nodeKey(st.sel.flow, st.sel.idx)] || [])[+b.dataset.rshow]; if (t?.reach) { st.reach = t.reach; refresh(); }
 });
 function bindMain() {
   const m = $('#main');
   const tf = $('#tfilter'); if (tf) { tf.oninput = () => { st.tfilter = tf.value; applyFilter(true); }; applyFilter(); }
-  const f = st.view === 'map' ? null : st.proj.flows[flowIdx(st.view)];
+  const f = st.view === OV ? null : st.proj.flows[flowIdx(st.view)];
   m.querySelectorAll('[data-view]').forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.view); });
   m.querySelectorAll('[data-goflow]').forEach(b => { const g = e => { e.stopPropagation(); go(b.dataset.goflow); }; b.onclick = g; b.onkeydown = e => { if (e.key === 'Enter') g(e); }; });
   m.querySelectorAll('.card[data-comp]').forEach(b => { b.onclick = () => openComp(b.dataset.comp); b.onkeydown = e => { if (e.key === 'Enter' && e.target === b) openComp(b.dataset.comp); }; });
@@ -2246,7 +2248,7 @@ async function startFind(q) {
   q = String(q || '').trim().slice(0, 60); if (!q || !st.proj) return;
   const ts = findTerms(q), topic = ts.length === 1 ? ts[0] : q;
   const use = wordHits(q), r = { topic, q, find: true, rows: Object.keys(use), use, jn: {}, busy: !!sample };
-  st.reach = r; closeSheet(); st.view = 'uses'; st.sel = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  st.reach = r; closeSheet(); st.view = USES; st.sel = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
   if (!sample) return;
   const flows = st.proj.flows.filter(f => f.nodes);
   try {
@@ -2255,7 +2257,7 @@ async function startFind(q) {
     (Array.isArray(out?.rows) ? out.rows : []).forEach(x => { const id = String(x?.id || ''); if (ok.has(id) && !use[id]) { use[id] = { kind: x.how === 'via' ? 'via' : 'rel', why: String(x.why || '').slice(0, 90) }; r.rows.push(id); } });
     (Array.isArray(out?.journeys) ? out.journeys : []).forEach(j => { const id = String(j?.id || ''); if (fids.has(id)) r.jn[id] = { touched: j.touched !== false, impact: String(j.impact || '').slice(0, 200), via: String(j.via || '').slice(0, 30) }; });
   } catch (e) { r.failed = true; }
-  r.busy = false; if (st.reach === r) { if (st.view === 'uses') render(); else if (st.sel) openNode(st.sel.flow, st.sel.idx); else render(); }
+  r.busy = false; if (st.reach === r) { if (st.view === USES) render(); else if (st.sel) openNode(st.sel.flow, st.sel.idx); else render(); }
 }
 document.addEventListener('submit', e => {
   if (e.target.matches('[data-find]')) { e.preventDefault(); startFind(e.target.querySelector('input').value); return; }
@@ -2266,7 +2268,7 @@ document.addEventListener('submit', e => {
 async function startWhatIf(want) {
   want = String(want || '').trim().slice(0, 200); const r = st.reach; if (!want || !r || !st.proj || !sample) return;
   const touched = st.proj.flows.filter(f => f.nodes && r.rows.some(x => x.startsWith(f.id + '#')));
-  const wi = { want, busy: true, by: {}, over: {} }; r.wi = wi; st.view = 'uses'; closeSheet(); st.sel = null; render();
+  const wi = { want, busy: true, by: {}, over: {} }; r.wi = wi; st.view = USES; closeSheet(); st.sel = null; render();
   requestAnimationFrame(() => document.getElementById('wi')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
   try {
     const trees = touched.map(f => `JOURNEY ${f.id} = ${f.title}\n` + f.nodes.map(n => n.kind === 'section' ? `  [${n.q}]` : `  ${'  '.repeat(n.d | 0)}${n.id}: ${n.q} → ${n.a}${n.note ? ' (' + n.note + ')' : ''}${r.rows.includes(f.id + '#' + n.id) ? '   ← uses ' + r.topic : ''}`).join('\n')).join('\n\n');
@@ -2278,7 +2280,7 @@ async function startWhatIf(want) {
       const nw = (Array.isArray(j.new) ? j.new : []).filter(x => x && x.q).slice(0, 8).map((x, i) => ({ id: 'new' + i, fate: 'new', after: ids.has(String(x.after)) ? String(x.after) : '', q: str(x.q), a: str(x.a), why: str(x.why) }));
       if (rows.length || nw.length) wi.by[f.id] = { rows, nw }; });
   } catch (e) { wi.failed = true; }
-  wi.busy = false; if (st.reach === r && st.view === 'uses') render();
+  wi.busy = false; if (st.reach === r && st.view === USES) render();
 }
 const wiKey = (fid, id) => fid + '#' + id;
 // the preview: every affected journey, today's row beside what it would become; untouched stretches fold into one line
@@ -2375,7 +2377,7 @@ function convHtml(fid, idx) {
   const turns = st.proj.conv?.[nodeKey(fid, idx)] || []; if (!turns.length) return '';
   return `<div class="turns">${turns.map((t, i) => `<div class="turn you">${esc(t.ask)}</div>` + (t.kind === 'change'
     ? `<div class="turn cl"><b>${esc(t.summary)}</b>${(t.touches || []).length ? `<div class="touch">${t.touches.map(c => `<div>${cite(c)} ${esc(c.what || '')}</div>`).join('')}</div>` : ''}${t.sideEffects ? `<div class="side">Also: ${esc(t.sideEffects)}</div>` : ''}${t.diff ? `<details><summary>see the exact change</summary><pre class="code">${esc(t.diff)}</pre></details>` : ''}<div style="margin-top:8px"><button type="button" class="btn sm primary" data-convask="${i}">Copy as prompt for your AI</button></div></div>`
-    : `<div class="turn cl">${esc(t.text)}${t.reach ? reachChain(t.reach) + `<div class="rchips">${st.reach === t.reach || (st.reach && st.reach.topic === t.reach.topic && st.reach.rows.join() === t.reach.rows.join()) ? '<button type="button" class="btn sm primary" data-view="uses">See all ' + t.reach.rows.length + ' →</button>' + reachChips(fid) + '<button type="button" class="linkbtn" data-rclear>clear</button>' : `<button type="button" class="rchip" data-rshow="${i}">light up the ${t.reach.rows.length} decisions</button>`}</div>` : ''}${(t.cites || []).length ? `<div class="touch">${t.cites.map(cite).join(' ')}</div>` : ''}</div>`)).join('')}</div>`;
+    : `<div class="turn cl">${esc(t.text)}${t.reach ? reachChain(t.reach) + `<div class="rchips">${st.reach === t.reach || (st.reach && st.reach.topic === t.reach.topic && st.reach.rows.join() === t.reach.rows.join()) ? '<button type="button" class="btn sm primary" data-view="' + USES + '">See all ' + t.reach.rows.length + ' →</button>' + reachChips(fid) + '<button type="button" class="linkbtn" data-rclear>clear</button>' : `<button type="button" class="rchip" data-rshow="${i}">light up the ${t.reach.rows.length} decisions</button>`}</div>` : ''}${(t.cites || []).length ? `<div class="touch">${t.cites.map(cite).join(' ')}</div>` : ''}</div>`)).join('')}</div>`;
 }
 function convFiles(f, n, extra) {
   // the lines this decision lives in, its component's files, then the rest of the flow; whole files, so "where does this end up" can be answered
@@ -2633,7 +2635,7 @@ async function mapCode() {
 function openProject() {
   st.src = 'proj'; store.set('rb.src', 'proj');
   st.review = store.get('rb.review.' + st.proj.key, {});
-  st.view = 'map'; st.cases = {}; st.knobs = {}; st.reach = null; st.sel = null; st.phase = 'empty'; st.read = null;
+  st.view = OV; st.cases = {}; st.knobs = {}; st.reach = null; st.sel = null; st.phase = 'empty'; st.read = null;
   render(); window.scrollTo(0, 0);
   traceAll(); // every flow, one after another; the map fills in as each one lands
 }
@@ -2661,7 +2663,7 @@ document.addEventListener('drop', async e => {
 });
 
 const DEMO_PLUMBING = new Set(['persist()', 'Stored answer still good?', 'Otherwise, ask the backend', 'Remote reachable?', 'Ask the backend', 'Model unreachable?', 'Who is calling?', 'Is the body sane?', 'Charge the quota', 'Log one line', 'Body too large or malformed?', 'Row’s aisle not in the live list?', 'Overlap clears the floor?', 'Name already in use?']);
-function loadDemo() { if (!DEMO) return; st.proj = JSON.parse(JSON.stringify(DEMO)); st.proj.flows.forEach(linkScreen); st.proj.flows.forEach(f => (f.nodes || []).forEach(n => { if (n.kind === 'decision' && DEMO_PLUMBING.has(n.q)) n.seen = 'plumbing'; })); st.files = null; st.briefs = []; st.cases = {}; st.knobs = {}; st.reach = null; st.review = store.get('rb.review.' + DEMO.key, {}); st.view = 'map'; st.sel = null; st.src = 'demo'; store.set('rb.src', 'demo'); render(); window.scrollTo(0, 0); }
+function loadDemo() { if (!DEMO) return; st.proj = JSON.parse(JSON.stringify(DEMO)); st.proj.flows.forEach(linkScreen); st.proj.flows.forEach(f => (f.nodes || []).forEach(n => { if (n.kind === 'decision' && DEMO_PLUMBING.has(n.q)) n.seen = 'plumbing'; })); st.files = null; st.briefs = []; st.cases = {}; st.knobs = {}; st.reach = null; st.review = store.get('rb.review.' + DEMO.key, {}); st.view = OV; st.sel = null; st.src = 'demo'; store.set('rb.src', 'demo'); render(); window.scrollTo(0, 0); }
 
 // a host that brings the code (VS Code) reads it straight away; the last analysis of it opens with one click
 if (window.RB_FILES) {
@@ -2673,7 +2675,7 @@ if (window.RB_FILES) {
 const lastSrc = window.RB_FILES ? null : store.get('rb.src', null), saved = store.get('rb.proj', null);
 if (lastSrc === 'demo') loadDemo();
 else if (lastSrc === 'proj' && saved && saved.components) {
-  st.proj = saved; st.src = 'proj'; st.review = store.get('rb.review.' + saved.key, {}); st.view = 'map'; render();
+  st.proj = saved; st.src = 'proj'; st.review = store.get('rb.review.' + saved.key, {}); st.view = OV; render();
   setStatus(`Showing your last analysis, <b>${esc(saved.label || saved.app?.name)}</b>. Open the folder again (change, top left) to trace more flows or see source lines.`);
 } else render();
 })();
