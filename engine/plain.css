@@ -1,8 +1,8 @@
-/* plain look for work: no logo, no glow, system font, one quiet accent */
+/* plain look for work: no logo, no glow, system font; blue accent, violet for highlighted rows */
 :root[data-look="plain"] {
   --bg:#F7F7F8; --surface:#FFFFFF; --surface2:#F1F2F4; --line:#E3E5E8; --line2:#CDD1D6;
   --ink:#1B1F24; --muted:#5E6670; --dim:#A3AAB2;
-  --amber:#2B5C8A; --amberBg:#E8EFF6; --violet:#4E5D6C; --violetBg:#EEF0F3; --mint:#3D7A5C; --coral:#B3372B; --hi:#EEF2F6;
+  --amber:#0F6CBD; --amberBg:#E5F0FB; --violet:#6747B8; --violetBg:#ECE7FA; --mint:#0E8A5F; --coral:#C43F2C; --hi:#E8F1FB;
   --glowA:transparent; --glowV:transparent; --gridLn:transparent; --glassBar:rgba(247,247,248,.92);
   --sans:"Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
   --mono:"Segoe UI", system-ui, -apple-system, Roboto, sans-serif;
