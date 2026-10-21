@@ -286,6 +286,15 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .fhead { margin:24px 0 20px; grid-template-columns:minmax(0,1fr); }
 .fhead .lede { margin:10px 0 0; font-size:16px; max-width:80ch; }
 .fhead .by { margin:8px 0 0; font-size:12px; color:var(--muted); } .fhead .by .linkbtn { font-size:12px; }
+/* wide windows: the journey's big title scrolls up under the bars and a slim title bar fades in above the parts strip (like iOS large titles) */
+.fmini { display:none; position:absolute; left:0; right:0; bottom:100%; height:var(--miniH,46px); align-items:center; gap:10px; padding:0 32px 0 28px; background:linear-gradient(var(--glassBar),var(--glassBar)),var(--bg); /* solid: a blur can't work inside the strip's own blur */
+  opacity:0; transform:translateY(6px); visibility:hidden; transition:opacity .22s ease, transform .3s cubic-bezier(.2,.8,.2,1), visibility 0s linear .3s; }
+body.fmin .fmini { opacity:1; transform:none; visibility:visible; transition-delay:0s; }
+.fmini .live { flex:none; margin:0; }
+.fmini .fm-t { font-weight:700; font-size:16px; letter-spacing:-.01em; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.fmini .fm-by { margin-left:auto; padding-left:16px; font-size:12px; color:var(--muted); white-space:nowrap; } .fmini .fm-by .linkbtn { font-size:12px; }
+.fhead > div { transform-origin:left bottom; transition:opacity .25s ease, transform .3s cubic-bezier(.2,.8,.2,1); }
+body.fmin .fhead > div { opacity:0; transform:translateY(-8px) scale(.97); }
 /* full-window app: a fixed sidebar of journeys on the left (like the files of a pull request); under 1000px it folds back into the top bar */
 #side { display:none; }
 @media (min-width:1001px) {
@@ -296,6 +305,8 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
   body.app #main > .tabs { display:none; }
   body.app .ov { grid-template-columns:minmax(0,1fr); margin-top:0; } body.app .ov-rail { display:none; }
   body.app .flowgrid { grid-template-columns:clamp(320px,24vw,400px) minmax(0,1fr); }
+  body.app { --miniH:46px; } body.app .fmini { display:flex; }
+  body.app .archbar { top:calc(var(--headH,64px) + var(--miniH)); margin-inline:-28px -32px; padding-inline:28px 32px; box-shadow:none; clip-path:none; }
 }
 .sd-i { display:flex; align-items:center; gap:8px; width:100%; text-align:left; border:0; background:none; border-radius:8px; padding:6px 8px; font-size:13.5px; color:var(--ink); cursor:pointer; min-width:0; }
 .sd-i:hover { background:var(--surface2); } .sd-i[aria-current="page"] { background:var(--violetBg); color:var(--ink); font-weight:600; box-shadow:inset 3px 0 0 var(--violet); }
@@ -1500,7 +1511,7 @@ function treeRows(f) {
   return out.join('');
 }
 
-function renderArch(f) {
+function renderArch(f, mini = '') {
   const p = st.proj;
   const used = new Set((f.nodes || []).filter(n => n.comp).map(n => n.comp)); (f.path || []).forEach(s => used.add(s[0]));
   const counts = {}; (f.nodes || []).forEach(n => { if (n.kind === 'decision' && n.comp) counts[n.comp] = (counts[n.comp] || 0) + 1; });
@@ -1511,7 +1522,7 @@ function renderArch(f) {
       `<button type="button" class="comp ${used.has(c.id) ? 'on' : ''} ${st.comp === c.id ? 'sel' : ''} ${curComp === c.id ? 'cur' : ''}" data-hl="${esc(c.id)}" aria-pressed="${st.comp === c.id}" title="Show only the lines ${esc(c.name)} decides">${esc(c.name)}${counts[c.id] ? `<sup>${counts[c.id]}</sup>` : ''}</button>`).join('')}</div>`;
   }).join('');
   const only = st.comp && compById(st.comp) ? `<button type="button" class="onlypill" data-hl="${esc(st.comp)}" title="Show every line again">only ${esc(compById(st.comp).name)} · ${counts[st.comp] || 0} ✕</button>` : '';
-  return `<div class="archbar" id="archbar"><div class="archrow">${units}${only}</div></div>`;
+  return `<div class="archbar" id="archbar">${mini}<div class="archrow">${units}${only}</div></div>`;
 }
 
 function connHtml(via) {
@@ -1538,9 +1549,11 @@ function renderCases(f, where) {
 function renderFlow(f) {
   if (!f) return '';
   const p = st.proj, fi = flowIdx(f.id);
-  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1>${f.lede ? `<p class="lede">${esc(f.lede)}</p>` : ''}${(() => { const re = f.nodes && st.files && sample && !p.demo ? `<button class="linkbtn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button>` : '';
-    return f.by || re ? `<p class="by">${f.by ? `Traced with ${esc(f.by.model)} · ${esc(fmtWhen(f.by.at))}` : ''}${f.by && re ? ' · ' : ''}${re}</p>` : ''; })()}</div></section>`;
-  const arch = renderArch(f);
+  const by = (() => { const re = f.nodes && st.files && sample && !p.demo ? `<button class="linkbtn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button>` : '';
+    return f.by || re ? `<p class="by">${f.by ? `Traced with ${esc(f.by.model)} · ${esc(fmtWhen(f.by.at))}` : ''}${f.by && re ? ' · ' : ''}${re}</p>` : ''; })();
+  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1>${f.lede ? `<p class="lede">${esc(f.lede)}</p>` : ''}${by}</div></section>`;
+  // wide windows: once the big title scrolls under the bars, a slim title bar with the same line fades in above the parts strip
+  const arch = renderArch(f, `<div class="fmini"><span class="live" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span><span class="fm-t">${esc(f.title)}</span>${by ? by.replace('<p class="by">', '<span class="fm-by">').replace(/<\/p>$/, '</span>') : ''}</div>`);
   if (!f.nodes) {
     const can = !!sample && !p.demo && st.files;
     return navHtml() + head + arch + `<div class="panel empty">${st.busy && st.busyFlow === f.id
@@ -1713,8 +1726,15 @@ function measure() {
   const h = Math.round(document.querySelector('header.top').getBoundingClientRect().height);
   const a = document.getElementById('archbar');
   document.documentElement.style.setProperty('--headH', h + 'px');
-  document.documentElement.style.setProperty('--stickTop', (h + (a ? a.offsetHeight : 0) + 12) + 'px');
+  const mini = a && a.querySelector('.fmini'), mh = mini && getComputedStyle(mini).display !== 'none' ? mini.offsetHeight : 0;
+  document.documentElement.style.setProperty('--stickTop', (h + mh + (a ? a.offsetHeight : 0) + 12) + 'px');
+  shrinkHead();
 }
+// the slim title bar shows once the big title has scrolled under it
+function shrinkHead() { const t = document.querySelector('#main .fhead h1'), mini = document.querySelector('#archbar .fmini');
+  const on = !!(t && mini && getComputedStyle(mini).display !== 'none' && t.getBoundingClientRect().bottom < (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--headH')) || 64) + mini.offsetHeight);
+  if (document.body.classList.contains('fmin') !== on) document.body.classList.toggle('fmin', on); }
+addEventListener('scroll', shrinkHead, { passive: true });
 if (window.ResizeObserver) new ResizeObserver(measure).observe(document.querySelector('header.top'));
 window.addEventListener('resize', () => { measure(); if (typeof placeSheet === 'function') placeSheet(); });
 
