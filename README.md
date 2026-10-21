@@ -37,6 +37,21 @@ Each run publishes three files to the `loupe-report` branch, and attaches
 
 The workflow needs `permissions: contents: write` to publish the branch.
 
+## In VS Code
+
+The same Review Bench runs inside VS Code, with the Copilot you are signed in
+to as its AI. No key and no Node needed.
+
+1. Download [`vscode/review-bench.vsix`](vscode/review-bench.vsix) (on GitHub: open it, then **Download raw file**).
+2. In VS Code: Extensions view, `...` menu, **Install from VSIX...**, pick the file.
+3. Open the folder with your code, then run **Review Bench: Open** from the command palette.
+4. Press **Map**. The first time, VS Code asks you to let Review Bench use Copilot.
+
+Every map, trace, Ask, What if and search is one Copilot request. **Save
+report** writes `report.html`. Settings: `reviewBench.model` (which Copilot
+model; **Review Bench: Choose the model** lists them) and `reviewBench.look`
+(`plain`, the default, or `full`). To build the file yourself: `node vscode/package.mjs`.
+
 ## How it works
 
 The `engine` folder is what the AI follows, wherever Review Bench runs:

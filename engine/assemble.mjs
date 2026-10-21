@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
 import { fhash, norm, decisions, prevTreeText, checkMap, checkTrace } from './core.mjs';
-import { withEngine } from './inline.mjs';
+import { reportPage } from './inline.mjs';
 
 const WORK = '.loupe/work', PREV = '.loupe/prev/report.json', OUT = '.loupe/report';
 const SKIP = /(^|\/)(\.loupe|\.github|node_modules|build[^/]*|DerivedData|dist)\/|\.(png|jpe?g|gif|webp|ico|icns|pdf|zip|ttf|otf|woff2?|mp4|mov|lock|pbxproj|xcuserstate|entitlements|plist|xcassets)$|(^|\/)(package-lock\.json|Contents\.json)$/i;
@@ -130,28 +130,8 @@ function build() {
 function publish(report) {
   write(`${OUT}/report.json`, JSON.stringify(report, null, 1) + '\n');
   write(`${OUT}/report.md`, markdown(report));
-  const html = page(report);
+  const html = reportPage(report, process.env.LOOK);
   if (html) write(`${OUT}/report.html`, html); else console.log('::warning::No usable app.html; report.html was not written.');
-}
-
-// ---------- the page: Review Bench with this report built in ----------
-// LOOK=plain gives the quiet look for work: no logo or glow, system font, one accent, the name only in the footer.
-const BOOT = '// boot: where the viewer left off';
-function page(r) {
-  const dir = path.dirname(new URL(import.meta.url).pathname), viewer = path.join(dir, 'app.html');
-  if (!fs.existsSync(viewer)) return null;
-  let h = withEngine(read(viewer), dir);
-  if (!h || !h.includes(BOOT)) return null;
-  const json = JSON.stringify(r).replace(/</g, '\\u003c');
-  h = h.replace(BOOT, `const BAKED = ${json};\nif (BAKED) { openReport({ text: async () => JSON.stringify(BAKED) }); } else {\n${BOOT}`)
-    .replace(/\} else render\(\);\n\}\)\(\);\n<\/script>\s*$/, '} else render();\n}\n})();\n</script>\n');
-  if (process.env.LOOK === 'plain') {
-    h = h.replace(/<link rel="(preconnect|stylesheet)" href="https:\/\/fonts\.googleapis\.com[^>]*>\n/g, '')
-      .replace('</style>', read(path.join(dir, 'plain.css')) + '</style>')
-      .replace('<title>', '<script>document.documentElement.dataset.look = "plain"; document.documentElement.dataset.theme = "light";</script>\n<title>')
-      + '<footer class="rb-foot">Review Bench</footer>\n';
-  }
-  return h;
 }
 
 // ---------- the README on the report branch: a short summary that points at the page ----------

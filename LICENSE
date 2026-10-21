@@ -3,11 +3,12 @@ Copyright (c) 2026 Andy Stumpp. All rights reserved.
 
 You may use this GitHub Action, unmodified and referenced from this repository
 (for example `uses: andystumpp/review-bench@v1`), in your own repositories and
-workflows, including for commercial work, and you may keep and share the
-reports it produces.
+workflows, including for commercial work. You may install and use the Review
+Bench VS Code extension, unmodified, as published in this repository. You may
+keep and share the reports both produce.
 
 You may not copy, modify, redistribute, sublicense or sell this software or any
-part of it (including its prompts, principles and report page), or build a
+part of it (including its prompts, principles, report page and extension), or build a
 derivative work from it, without written permission from the copyright holder.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR

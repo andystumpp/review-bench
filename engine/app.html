@@ -918,6 +918,9 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
 .rb-imp { flex-basis:100%; margin:2px 0 0; font-size:14px; color:var(--ink); } .rb-via { color:var(--muted); }
 @media (max-width:640px) { .uj { grid-template-columns:1fr; } .uj-go { grid-column:1; grid-row:auto; } }
 [data-host="none"] #srcBtn, [data-host="none"] .askbox .btn { display:none !important; }
+/* VS Code: the workspace is the code; no other folder to pick */
+[data-host="vscode"] #srcBtn, [data-host="vscode"] #resetRead { display:none !important; }
+.land.vs { padding-top:clamp(24px,6vw,64px); } .land.vs .land-top { grid-template-columns:minmax(0,560px); justify-content:center; }
 </style>
 
 <header class="top">
@@ -926,6 +929,7 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
     <div class="brand">Review Bench</div>
     <button class="pill srcpill" id="srcBtn" type="button" title="Open different code" hidden><b id="srcKind">demo</b> <span id="srcName">Restock</span> · change</button>
     <button class="pill" id="themeBtn" type="button">theme</button>
+    <button class="pill" id="saveBtn" type="button" title="Save this analysis as report.html, to share or open later" hidden>Save report</button>
     <div class="progress" id="progress" aria-live="polite"><div class="bar"><i id="barFill"></i></div><span id="progText"></span></div>
   </div>
 </header>
@@ -949,7 +953,8 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
 // ---------- utilities ----------
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const store = {
+// a host can keep what the page remembers (a VS Code webview forgets its localStorage)
+const store = window.RB_STORE || {
   get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
@@ -983,6 +988,7 @@ const st = {
 // window.RB_HOST / RB_AI: a host page (the VS Code extension) names itself and brings an AI with sample.json's shape
 const HOST = window.RB_HOST || (window.claude && typeof window.claude.use === 'function' ? 'claude' : 'none');
 const REPORT_ONLY = HOST === 'none'; // a report page: no folder to open, no AI to ask
+const AI = HOST === 'vscode' ? 'Copilot' : 'Claude'; // who the page says is reading the code
 document.documentElement.dataset.host = HOST;
 let sample = window.RB_AI || null;
 const sampleReady = sample ? Promise.resolve(sample) : HOST === 'claude'
@@ -1060,6 +1066,7 @@ function render() {
   const p = st.proj;
   const landing = !st.src || !p;
   $('#srcBtn').hidden = landing; $('#progress').hidden = landing;
+  $('#saveBtn').hidden = landing || !window.RB_SAVE || !st.proj || st.proj.demo;
   if (landing) { $('#main').innerHTML = renderLanding(); bindLanding(); measure(); return; }
   $('#srcKind').textContent = p.demo ? 'demo' : (p.stats ? p.stats.files.toLocaleString() + ' files' : 'code');
   $('#srcName').textContent = p.demo ? p.app.name : (p.label || p.app?.name || 'project');
@@ -1094,7 +1101,7 @@ const fromTag = (pr, x) => pr.from?.[x] && pr.from[x] !== 'code' ? `<span class=
 // "asked" = the builder said it (spec, README, added by hand); "today" = Claude read it out of the code, so it can't be the yardstick on its own
 const pAsked = (pr, x) => { if (!pr.from) return pr.source === 'spec'; const f = x ? pr.from[x] : 'you'; return !!f && f !== 'code'; };
 const pGroups = pr => { const ix = pr.items.map((x, i) => i); return [['asked', ix.filter(i => pAsked(pr, pr.items[i]))], ['today', ix.filter(i => !pAsked(pr, pr.items[i]))]].filter(g => g[1].length); };
-const P_HEAD = { asked: ['You asked for', 'From your spec or added by you. The code is checked against these.', 'The code is checked against these.'], today: ['Your app does this today', 'Claude read these from the code. Keep what you want, fix or delete the rest.', 'Read from the code, kept by you.'] };
+const P_HEAD = { asked: ['You asked for', 'From your spec or added by you. The code is checked against these.', 'The code is checked against these.'], today: ['Your app does this today', '' + AI + ' read these from the code. Keep what you want, fix or delete the rest.', 'Read from the code, kept by you.'] };
 function rulesHtml(pr) {
   if (!(pr.rules || []).length) return '';
   return `<details class="prules"><summary>${pr.rules.length} writing rule${pr.rules.length > 1 ? 's' : ''} in your spec, about how content is written. Code can’t keep or break these, so they aren’t checked.</summary>${pr.rules.map(r => `<div>· ${esc(r.text)}${r.from ? ` <span class="pfrom">from ${esc(r.from)}</span>` : ''}</div>`).join('')}</details>`;
@@ -1142,7 +1149,7 @@ function partNote(el) {
     ${comp ? `<div class="pk-r"><span class="eyebrow">Made by</span><span><button type="button" class="cbtn" data-opencomp="${esc(cid)}">${esc(comp.name)}</button> ${esc(comp.role || '')}</span></div>` : ''}
     ${flows.length ? `<div class="pk-r"><span class="eyebrow">What you can do here</span><span class="chips">${flows.map(({ f, fi }) => `<span class="chip" role="button" tabindex="0" data-goflow="${esc(f.id)}" style="--fc:${FLOW_COLORS[fi % FLOW_COLORS.length]}">${esc(f.tab)} →</span>`).join('')}</span></div>` : ''}
     ${fl ? `<button type="button" class="flagline linkbtn" data-opencomp="${esc(cid)}">⚑ ${fl} thing${fl > 1 ? 's' : ''} to check in this code</button>` : ''}
-    ${!c && !comp ? '<span>Claude didn’t link this part to any code. Map again to fill it in.</span>' : ''}`;
+    ${!c && !comp ? '<span>' + AI + ' didn’t link this part to any code. Map again to fill it in.</span>' : ''}`;
 }
 const projScreens = () => st.proj.screens?.length ? st.proj.screens : (st.proj.home ? [{ name: 'Home', ...st.proj.home }] : []);
 const screenHas = h => new Set([...(h.tabs || []).map(t => t.concept), ...(h.sections || []).flatMap(s => [s.concept, ...(s.rows || []).map(r => r.concept)])].filter(Boolean));
@@ -1188,7 +1195,7 @@ function promisesPanel() {
     if (!mine.length && !read.length) return '';
     return `<section class="step promises-p" id="step-promises">${stepHead('What must stay true', 'Everything you keep lands here. Next time you open your code, we check it still does it.', st.proj.demo ? '' : '<button class="linkbtn" type="button" id="editPromises">edit</button>')}
     ${mine.length ? `<ul class="plist ro">${mine.map(li).join('')}</ul>` : '<div class="pempty"><b>Nothing here yet</b><span>Press <b>Keep</b> on a decision above, or sign one off in a journey. It lands here and gets checked every time you open your code.</span></div>'}
-    ${read.length ? `<details class="prules"><summary>${read.length} more Claude read from your spec files and code, also checked</summary><ul class="plist ro" style="margin-top:8px">${read.map(li).join('')}</ul></details>` : ''}${rulesHtml(pr)}</section>`;
+    ${read.length ? `<details class="prules"><summary>${read.length} more ${AI} read from your spec files and code, also checked</summary><ul class="plist ro" style="margin-top:8px">${read.map(li).join('')}</ul></details>` : ''}${rulesHtml(pr)}</section>`;
   }
   return `<section class="panel promises-p todo" id="promisesP"><span class="eyebrow" style="color:var(--amber)">Your spec · edit</span>
     <h3>What should your app do?</h3>
@@ -1438,7 +1445,7 @@ function knobNote(f, k) {
 function renderCases(f, where) {
   const cs = f.cases || []; if (!cs.length) return '';
   const c = curCase(f);
-  return `<div class="cases${where ? ' ' + where : ''}"><span class="eyebrow" style="flex-basis:100%" title="Claude walked each case through the code by reading it. Nothing was executed.">Test cases · read, not run</span>${cs.map(x => `<button type="button" class="cpill" data-case="${esc(x.id)}" aria-pressed="${c && c.id === x.id}" title="${esc(x.outcome || '')}">${esc(x.label)}</button>`).join('')}${c && c.outcome ? `<span class="cout">▸ ${esc(c.outcome)}</span>` : ''}</div>`;
+  return `<div class="cases${where ? ' ' + where : ''}"><span class="eyebrow" style="flex-basis:100%" title="${AI} walked each case through the code by reading it. Nothing was executed.">Test cases · read, not run</span>${cs.map(x => `<button type="button" class="cpill" data-case="${esc(x.id)}" aria-pressed="${c && c.id === x.id}" title="${esc(x.outcome || '')}">${esc(x.label)}</button>`).join('')}${c && c.outcome ? `<span class="cout">▸ ${esc(c.outcome)}</span>` : ''}</div>`;
 }
 
 function renderFlow(f) {
@@ -1449,11 +1456,11 @@ function renderFlow(f) {
   if (!f.nodes) {
     const can = !!sample && !p.demo && st.files;
     return navHtml() + head + arch + `<div class="panel empty">${st.busy && st.busyFlow === f.id
-      ? `<h3><span class="spinner"></span>Tracing this flow</h3><p>Claude is reading ${(f.files || []).length} files and writing the decision tree. This usually takes 30 to 90 seconds.</p><div class="stream">${esc(st.streamText.slice(-600))}</div>`
+      ? `<h3><span class="spinner"></span>Tracing this flow</h3><p>${AI} is reading ${(f.files || []).length} files and writing the decision tree. This usually takes 30 to 90 seconds.</p><div class="stream">${esc(st.streamText.slice(-600))}</div>`
       : can && promisesPending() ? `<h3>Check the promises first</h3><p>Every decision in this flow is compared against what your app promises. Look over that list on the Overview, then come back.</p><p><button class="btn primary" type="button" data-view="map">Check the promises</button></p>`
       : st.traceN ? `<h3><span class="spinner"></span>Queued</h3><p>Flows are tracing one after another (${st.traceN[0]} of ${st.traceN[1]} right now). This one is next in line.</p>`
-      : can ? `<h3>Not traced yet</h3><p>Claude reads the files on this path and writes every fork it finds, with the lines behind it.</p><p><button class="btn primary" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Trace ${esc(f.tab)}</button></p>`
-      : `<h3>Not traced yet</h3><p>${REPORT_ONLY ? 'The next run traces this journey.' : st.files ? 'Asking Claude is not available in this view.' : 'Open the code folder again to trace this flow; source files are not kept between visits.'}</p>`}</div>`;
+      : can ? `<h3>Not traced yet</h3><p>${AI} reads the files on this path and writes every fork it finds, with the lines behind it.</p><p><button class="btn primary" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Trace ${esc(f.tab)}</button></p>`
+      : `<h3>Not traced yet</h3><p>${REPORT_ONLY ? 'The next run traces this journey.' : st.files ? 'Asking ' + AI + ' is not available in this view.' : 'Open the code folder again to trace this flow; source files are not kept between visits.'}</p>`}</div>`;
   }
   const since = f.diff || (p.demo && f.nodes.some(n => sinceOf(n))) ? sinceBar([f], f.diff?.at || 'build v12', true) : '';
   return navHtml() + head + arch + since + renderKnobs(f) + renderGrid(f);
@@ -1497,7 +1504,7 @@ function renderScreen(f) {
     ${on.map(sec => `<div class="rhdr"><span>${conceptLabel(sec.label || '')}</span>${sec.hint ? `<i>${esc(sec.hint)}</i>` : ''}</div>` +
       ((sec.rows || []).length ? `<div class="rgroup">${sec.rows.map(row).join('')}</div>` : `<div class="rempty">Nothing here right now</div>`)).join('')}
     ${sc.action ? `<div class="rfab"><span>${esc(sc.action)}</span></div>` : ''}`;
-  const cap = `<div class="scr-cap">${st.proj.demo ? 'drawn from the mockup' : 'drawn by Claude from the view code'} · tap a row to trace it</div>`;
+  const cap = `<div class="scr-cap">${st.proj.demo ? 'drawn from the mockup' : 'drawn by ' + AI + ' from the view code'} · tap a row to trace it</div>`;
   const seq = isBackendFlow(f) ? seqDiagram(f) : '';
   const dev = !seq && sc.kind !== 'none' && on.length ? `<div class="device real" aria-label="Screen">${sc.kind === 'web'
     ? `<div class="rweb">${webChrome(siteUrl())}<div class="rbody">${body}</div></div>`
@@ -1684,7 +1691,7 @@ function openNode(fid, idx) {
   B.querySelectorAll('[data-convask]').forEach(b => b.onclick = () => { const t = st.proj.conv[nodeKey(fid, idx)][+b.dataset.convask]; if (!t) return;
     asksOf()[nodeKey(fid, idx)] = { want: t.ask, text: dText(n), where: n.file ? n.file + (n.lines ? ' lines ' + n.lines.join('-') : '') : f.title, plan: t.summary, touches: t.touches };
     persistProj(); navigator.clipboard?.writeText(askPrompt()).catch(() => {}); b.textContent = 'Copied · in your prompt list on the Overview'; b.disabled = true; });
-  if (!sample) { $('#askBtn').disabled = true; $('#answer').textContent = 'Asking Claude is not available in this view.'; }
+  if (!sample) { $('#askBtn').disabled = true; $('#answer').textContent = 'Asking ' + AI + ' is not available in this view.'; }
   else if (!st.files && !st.proj.demo) { $('#askBtn').disabled = true; $('#answer').textContent = 'Open the folder again to ask; the files are not kept between visits.'; }
 }
 function openComp(cid) {
@@ -1946,7 +1953,7 @@ function numbered(p, t, cap) { const ls = t.split('\n'); let s = `=== ${p} (${ls
 function promiseText() {
   // while mapping new code, only the promises of this same folder's last analysis count
   const pr = st.read ? st.read.prev?.promises : st.proj?.promises; if (!pr || !pr.items?.length || !pr.confirmed) return '';
-  return `=== What the app promises, confirmed by the builder${pr.source === 'inferred' ? ' (there is no spec; Claude drafted these from the code and the builder checked them)' : ''}\n${pr.items.map(x => '- ' + (pr.on?.[x] ? '[' + pr.on[x] + '] ' : '') + x + (pAsked(pr, x) ? '' : ' (read from the code, kept by the builder)')).join('\n')}\n\n`;
+  return `=== What the app promises, confirmed by the builder${pr.source === 'inferred' ? ' (there is no spec; the AI drafted these from the code and the builder checked them)' : ''}\n${pr.items.map(x => '- ' + (pr.on?.[x] ? '[' + pr.on[x] + '] ' : '') + x + (pAsked(pr, x) ? '' : ' (read from the code, kept by the builder)')).join('\n')}\n\n`;
 }
 function briefText(cap) { let s = promiseText(); for (const b of st.briefs) { const add = `=== ${b.path}\n${b.text}\n\n`; if (s.length + add.length > cap) { s += add.slice(0, Math.max(0, cap - s.length)); break; } s += add; } return s || '(no spec, spec or README found)'; }
 const lastKey = label => 'rb.last.' + String(label || '').replace(/\W+/g, '-').toLowerCase();
@@ -2043,13 +2050,13 @@ ${code}`;
 
 // ---------- running Claude ----------
 const ERR = {
-  not_granted: 'Claude access was declined for this page. Reload to be asked again.',
-  sampling_disabled: 'Claude is not available on this account.',
-  rate_limited: 'Claude is busy or your usage limit is reached. Try again in a minute.',
+  not_granted: '' + AI + ' access was declined for this page. Reload to be asked again.',
+  sampling_disabled: '' + AI + ' is not available on this account.',
+  rate_limited: '' + AI + ' is busy or your usage limit is reached. Try again in a minute.',
   prompt_too_large: 'The code is too large for one pass. Open a smaller folder (one app or package).',
-  invalid_json: 'Claude’s answer could not be read. Try again.',
+  invalid_json: '' + AI + '’s answer could not be read. Try again.',
   session_expired: 'Your session expired. Sign in again and reload.',
-  refused: 'Claude declined this request.',
+  refused: '' + AI + ' declined this request.',
 };
 let toastT = null;
 function setStatus(html, sticky) { $('#status').innerHTML = html; $('#toast').hidden = !html; clearTimeout(toastT); if (html && !sticky && !/spinner|class="err"/.test(html)) toastT = setTimeout(() => { $('#toast').hidden = true; }, 6000); }
@@ -2184,7 +2191,7 @@ async function traceFlow(fid) {
     setStatus(`Traced <b>${esc(f.title)}</b>: ${r.nodes.filter(n => n.kind === 'decision').length} decisions, ${r.nodes.filter(n => n.flag).length} flagged.`);
     persistProj();
   } catch (e) {
-    setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to Claude. Try again.')}</span>`);
+    setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to ' + AI + '. Try again.')}</span>`);
   } finally { st.busy = false; st.busyFlow = null; render(); }
 }
 async function traceAll() {
@@ -2296,7 +2303,7 @@ function renderWhatIf(r) {
   const total = cnt.changes + cnt.goes + cnt.new, open = fl.reduce((a, f) => a + [...wi.by[f.id].rows, ...wi.by[f.id].nw].filter(x => !over(wiKey(f.id, x.id))).length, 0);
   const asked = asksOf()['whatif:' + r.topic];
   return `<section class="wi" id="wi"><div class="wi-head"><div class="eyebrow">Preview · nothing in your code is touched</div><h2>If you <em>${esc(wi.want)}</em></h2>
-    <p class="us-sub">${wi.busy ? '<span class="spinner"></span> Claude is redrawing the affected journeys…' : wi.failed ? 'Claude could not draw the preview this time. Try again.' : total ? `${cnt.changes} decision${cnt.changes === 1 ? '' : 's'} would change, ${cnt.goes} would go away, ${cnt.new} would be new, across ${fl.length} journey${fl.length === 1 ? '' : 's'}. Everything else stays. Keep or change each one, then copy the prompt.` : 'Claude thinks nothing in these journeys would change.'}</p></div>
+    <p class="us-sub">${wi.busy ? '<span class="spinner"></span> ' + AI + ' is redrawing the affected journeys…' : wi.failed ? '' + AI + ' could not draw the preview this time. Try again.' : total ? `${cnt.changes} decision${cnt.changes === 1 ? '' : 's'} would change, ${cnt.goes} would go away, ${cnt.new} would be new, across ${fl.length} journey${fl.length === 1 ? '' : 's'}. Everything else stays. Keep or change each one, then copy the prompt.` : '' + AI + ' thinks nothing in these journeys would change.'}</p></div>
     ${fl.map(sec).join('')}
     ${total && !wi.busy ? `<div class="askbox wi-go"><div><span class="eyebrow">${open ? `${open} still to look at` : 'All decided'}</span><p class="hint" style="margin:4px 0 0">One prompt with every kept row. Paste it into Claude Code, Cursor or ChatGPT, then open the folder here again: the tool checks what was done.</p></div><div class="wi-btns"><button type="button" class="btn primary sm" id="wiCopy">Copy the prompt</button><button type="button" class="btn sm" id="wiAdd">${asked ? 'Update in your changes' : 'Add to your changes'}</button></div></div>` : ''}</section>`;
 }
@@ -2353,11 +2360,11 @@ function renderUses() {
   const rest = read.filter(f => !hit.includes(f));
   const line = f => { const j = r.jn?.[f.id], n = cnt[f.id] || 0, n2 = cnt2[f.id] || 0;
     return `<button type="button" class="uj" data-ujo="${esc(f.id)}"><span class="uj-t">${esc(f.title)}</span>
-      <span class="uj-i">${j?.impact ? esc(j.impact) : r.busy ? '<span class="dim">Claude is reading this journey…</span>' : ''}</span>
+      <span class="uj-i">${j?.impact ? esc(j.impact) : r.busy ? '<span class="dim">' + AI + ' is reading this journey…</span>' : ''}</span>
       <span class="uj-n"><b>${n}</b> decision${n === 1 ? '' : 's'}${n2 ? `<span> + ${n2} through ${esc(j?.via || 'what it builds')}</span>` : ''}</span><span class="uj-go">show in tree →</span></button>`; };
   const sub = hit.length ? `It matters in ${hit.length} of ${read.length} journey${read.length > 1 ? 's' : ''}.` : r.busy ? 'No decision names it.' : 'Nothing found.';
   return `<section class="hero fhead us-head"><div><div class="eyebrow">Search</div><h1>“<em>${esc(r.topic)}</em>”</h1>
-    <p class="us-sub">${sub}${r.busy ? ' <span class="spinner"></span> Claude is checking each journey for what depends on it…' : r.failed ? ' Claude could not read the journeys this time; these are word matches only.' : ''}${unread ? ` ${unread} journey${unread > 1 ? 's are' : ' is'} not read yet, so not searched.` : ''}</p></div></section>
+    <p class="us-sub">${sub}${r.busy ? ' <span class="spinner"></span> ' + AI + ' is checking each journey for what depends on it…' : r.failed ? ' ' + AI + ' could not read the journeys this time; these are word matches only.' : ''}${unread ? ` ${unread} journey${unread > 1 ? 's are' : ' is'} not read yet, so not searched.` : ''}</p></div></section>
     <div class="uj-list">${hit.map(line).join('')}${rest.length && !r.busy ? `<div class="uj-rest">Not touched: ${rest.map(f => esc(f.tab)).join(', ')}</div>` : ''}</div>
     ${hit.length && !r.busy && sample ? whatIfBox(r) : ''}${r.wi ? renderWhatIf(r) : ''}`;
 }
@@ -2404,7 +2411,7 @@ const LAND_ERR = {
   report: ['That is not a Review Bench report', 'Pick the report.json from the loupe-report branch of your repo.'],
   zip: ['The zip reader did not load', 'Open the folder instead of the zip.'],
   badzip: ['That zip could not be opened', 'Try zipping the folder again, or open the folder itself.'],
-  claude: ['Claude could not draw the map', ''],
+  claude: ['' + AI + ' could not draw the map', ''],
 };
 function renderLanding() {
   if (REPORT_ONLY) return '<section class="land"><div><h1 style="font-size:28px">No report in this page</h1><p class="lede">This page shows a Review Bench report. Download report.html again from your report branch or run.</p></div></section>';
@@ -2432,7 +2439,8 @@ function renderLanding() {
     drop = `<div class="center"><span class="t" style="color:var(--coral)">${esc(e[0])}</span><span style="font-size:14px;color:var(--muted);max-width:38ch">${esc(st.errText || e[1])}</span><button class="btn" type="button" id="resetRead">Try another folder</button></div>`;
   } else drop = `<div class="center"><div style="display:grid;gap:6px"><span class="t" id="dropTitle">Drop a code folder or a .zip</span><span class="small" style="font-size:12px">or pick one</span></div>
       <div class="acts" style="justify-content:center"><label class="btn primary">Open code folder<input type="file" id="folderIn" webkitdirectory directory multiple></label><label class="btn">Open a .zip<input type="file" id="zipIn" accept=".zip,application/zip"></label></div>
-      <span class="small">Files stay in this browser. Only the text sent to Claude leaves it.</span></div>`;
+      <span class="small">Files stay in this browser. Only the text sent to ${AI} leaves it.</span></div>`;
+  if (HOST === 'vscode') return `<div class="land vs" id="land"><section class="land-top"><div class="drop-wrap"><div class="drop ${ph === 'error' ? 'bad' : ''}" id="drop">${ph === 'empty' ? '<div class="center"><span class="t"><span class="spinner"></span>Reading this workspace</span></div>' : drop}</div></div></section></div>`;
   const prev = store.get('rb.proj', null);
   // once mapping starts, the card becomes the centre of the page and everything else steps back
   const focus = ph === 'mapping', enter = focus && !st.landFocus; st.landFocus = focus;
@@ -2544,7 +2552,7 @@ function bindLanding() {
   const openCode = () => { const fi = document.getElementById('folderIn'); if (fi) fi.click(); else document.getElementById('drop')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
   on('heroOpen', openCode);
   const land = document.getElementById('land');
-  landTree();
+  if (HOST !== 'vscode') landTree();
   if (land?.classList.contains('enter')) setTimeout(() => land.classList.replace('enter', 'settled'), 800);
   on('resetRead', () => setPhase('empty', { read: null, err: null, errText: '' }));
   on('startMap', () => mapCode());
@@ -2558,6 +2566,18 @@ function bindLanding() {
   const zi = document.getElementById('zipIn'); if (zi) zi.onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) readZip(f); };
   const ri = document.getElementById('reportIn'); if (ri) ri.onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) openReport(f); };
 }
+// the open analysis as a report.json, the shape the daily workflow writes, so a host can save it as report.html
+function exportReport() {
+  const p = st.proj, pr = p.promises, cs = p.concepts || [];
+  const map = { app: p.app, places: p.places, components: p.components, concepts: cs, screens: p.screens,
+    glossary: (p.glossary || []).filter(g => !cs.some(c => c.name === g.term)),
+    flows: p.flows.map(f => ({ id: f.id, tab: f.tab, server: f.server, title: f.title, lede: f.lede, path: f.path, files: f.files })),
+    promises: pr ? pr.items.map(t => ({ text: t, on: pr.on?.[t] || '', from: pr.from?.[t] || '' })) : [], rules: pr?.rules || [], conflicts: pr?.conflicts || [], promiseSource: pr?.source || 'inferred' };
+  const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, promises: f.promises, read: f.read || {}, diff: f.diff || null }]));
+  const files = st.files ? Object.fromEntries([...st.files].map(([k, t]) => [k, fhash(t)])) : {};
+  return { format: 'review-bench-report', version: 1, label: p.label, key: p.key, at: new Date().toISOString(), commit: p.report?.commit || '', prevAt: null, files, map, traces, notes: [] };
+}
+$('#saveBtn').onclick = () => { if (st.proj && window.RB_SAVE) window.RB_SAVE(exportReport()); };
 // a report.json written by the daily workflow (.loupe/engine in the repo): the map and every traced journey, no code
 async function openReport(file) {
   let r; try { r = JSON.parse(await file.text()); } catch { r = null; }
@@ -2596,7 +2616,7 @@ async function mapCode() {
   const r = st.read; if (!r || st.busy) return;
   st.files = r.files; st.briefs = r.briefs;
   await sampleReady;
-  if (!sample) return setPhase('error', { err: 'claude', errText: 'Asking Claude is not available in this view. Open this page in claude.ai.' });
+  if (!sample) return setPhase('error', { err: 'claude', errText: 'Asking ' + AI + ' is not available in this view. Open this page in claude.ai.' });
   st.busy = true; setPhase('mapping');
   try {
     const m = sanitizeMap(await askChecked(mapPrompt(), m => checkMap(m, hasFile)));
@@ -2607,7 +2627,7 @@ async function mapCode() {
     st.busy = false; persistProj(); openProject();
   } catch (e) {
     st.busy = false;
-    if (e?.code === 'cancelled') setPhase('read'); else setPhase('error', { err: 'claude', errText: ERR[e?.code] || 'Something went wrong talking to Claude. Try again.' });
+    if (e?.code === 'cancelled') setPhase('read'); else setPhase('error', { err: 'claude', errText: ERR[e?.code] || 'Something went wrong talking to ' + AI + '. Try again.' });
   }
 }
 function openProject() {
@@ -2643,8 +2663,14 @@ document.addEventListener('drop', async e => {
 const DEMO_PLUMBING = new Set(['persist()', 'Stored answer still good?', 'Otherwise, ask the backend', 'Remote reachable?', 'Ask the backend', 'Model unreachable?', 'Who is calling?', 'Is the body sane?', 'Charge the quota', 'Log one line', 'Body too large or malformed?', 'Row’s aisle not in the live list?', 'Overlap clears the floor?', 'Name already in use?']);
 function loadDemo() { if (!DEMO) return; st.proj = JSON.parse(JSON.stringify(DEMO)); st.proj.flows.forEach(linkScreen); st.proj.flows.forEach(f => (f.nodes || []).forEach(n => { if (n.kind === 'decision' && DEMO_PLUMBING.has(n.q)) n.seen = 'plumbing'; })); st.files = null; st.briefs = []; st.cases = {}; st.knobs = {}; st.reach = null; st.review = store.get('rb.review.' + DEMO.key, {}); st.view = 'map'; st.sel = null; st.src = 'demo'; store.set('rb.src', 'demo'); render(); window.scrollTo(0, 0); }
 
+// a host that brings the code (VS Code) reads it straight away; the last analysis of it opens with one click
+if (window.RB_FILES) {
+  const saved = store.get('rb.proj', null); if (saved?.components) st.proj = saved;
+  window.RB_FILES.then(({ entries, label }) => readCode(entries.map(e => ({ path: e.path, size: e.size, read: async () => e.text })), label, 'folder'),
+    () => setPhase('error', { err: 'empty' }));
+}
 // boot: where the viewer left off: the demo, their last analysis, or the landing page
-const lastSrc = store.get('rb.src', null), saved = store.get('rb.proj', null);
+const lastSrc = window.RB_FILES ? null : store.get('rb.src', null), saved = store.get('rb.proj', null);
 if (lastSrc === 'demo') loadDemo();
 else if (lastSrc === 'proj' && saved && saved.components) {
   st.proj = saved; st.src = 'proj'; st.review = store.get('rb.review.' + saved.key, {}); st.view = 'map'; render();
