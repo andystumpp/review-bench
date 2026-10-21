@@ -333,6 +333,8 @@ body.fmin .fhead > div { opacity:0; transform:translateY(-8px) scale(.97); }
 .cr-t { flex:1; min-width:0; font-size:14.5px; } .s-broken .cr-t { font-weight:600; }
 .cr-from { flex:none; font-family:var(--mono); font-size:11px; color:var(--dim); max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cr-b { padding:0 4px 12px 26px; font-size:13.5px; color:var(--muted); } .cr-b p { margin:0 0 6px; }
+button.clink { cursor:pointer; font:inherit; } button.clink:hover { color:var(--amber); border-color:var(--amber); } .lives button.clink, .eyebrow button.clink { background:none; border:0; padding:0; color:inherit; font-weight:600; text-decoration:underline; text-underline-offset:2px; letter-spacing:inherit; text-transform:inherit; }
+.peek { margin-top:10px; } .clink[aria-expanded] { border-color:var(--amber); }
 .cr-w { display:flex; flex-wrap:wrap; gap:6px; } .cr-w .cite { font-family:var(--mono); font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--surface2); border:1px solid var(--line); color:var(--ink); }
 .cr-lint > summary { cursor:pointer; list-style:none; } .cr-l { cursor:default; } .cr-l .cr-t { color:var(--muted); font-size:13.5px; }
 .cr-docs { font-size:12px; color:var(--dim); margin:14px 0 0; } .cr-docs code, .panel.empty code { font-size:11.5px; }
@@ -1838,10 +1840,8 @@ function openNode(fid, idx) {
   let code = '';
   const src = n.file && st.files ? st.files.get(n.file) : null;
   if (src) {
-    const lines = src.split('\n'); const [a, b] = Array.isArray(n.lines) ? n.lines : [1, 1];
-    const from = Math.max(1, (a | 0) - 4), to = Math.min(lines.length, Math.max(a | 0, b | 0) + 4);
-    code = `<div><div class="eyebrow" style="margin-bottom:6px">${esc(n.file)} · lines ${a}–${b}</div><pre class="code">${lines.slice(from - 1, to).map((l, k) => {
-      const ln = from + k; return `<span class="ln ${ln >= a && ln <= b ? 'hl' : ''}"><i>${ln}</i>${esc(l)}</span>`; }).join('')}</pre></div>`;
+    const [a, b] = Array.isArray(n.lines) ? n.lines : [1, 1];
+    code = `<div><div class="eyebrow" style="margin-bottom:6px">${fileLink(n.file, n.lines, `${n.file} · lines ${a}–${b}`, true)}</div>${excerpt(src, n.lines)}</div>`;
   }
   // the node's own subtree
   const sub = []; for (let j = idx + 1; j < f.nodes.length; j++) { const m = f.nodes[j]; if (m.kind === 'section' || m.d <= n.d) break; sub.push(j); }
@@ -1860,7 +1860,7 @@ function openNode(fid, idx) {
     ${code}
     ${REPORT_ONLY ? '' : `<div class="conv"><div class="eyebrow" style="margin-bottom:6px">Ask about this, or say what it should do instead</div>${convHtml(fid, idx)}
       <form class="ask" id="askForm"><input id="askIn" placeholder="${(st.proj.conv?.[nodeKey(fid, idx)] || []).length ? 'Follow up…' : 'What does this mean for a user? / Make it do … instead'}" autocomplete="off"><button class="btn" type="submit" id="askBtn">Send</button></form><div class="answer" id="answer" style="margin-top:10px"></div></div>`}
-    <div class="lives"><span class="eyebrow" style="display:block;margin-bottom:4px">Lives in</span>${n.file ? `<b>${esc(n.file)}</b>${n.lines ? ' · lines ' + esc(n.lines.join('–')) : ''}${!src ? ` · <span>${REPORT_ONLY ? 'the code itself is not part of the report' : st.proj.demo ? 'source is not part of the demo' : 'open the folder again to show these lines'}</span>` : ''}<br>` : ''}${c ? `${esc(c.name)}: ${(c.files || []).map(esc).join(' · ')}` : ''}${String(n.tags || '').trim() ? `<br>${String(n.tags).split(/\s+/).filter(x => TAGS[x]).map(x => TAGS[x]).join(' · ')}` : ''}</div>`);
+    <div class="lives"><span class="eyebrow" style="display:block;margin-bottom:4px">Lives in</span>${n.file ? `${window.RB_OPEN && src ? fileLink(n.file, n.lines, n.file + (n.lines ? ' · lines ' + n.lines.join('–') : ''), true) : `<b>${esc(n.file)}</b>${n.lines ? ' · lines ' + esc(n.lines.join('–')) : ''}`}${!src ? ` · <span>${REPORT_ONLY ? 'the code itself is not part of the report' : st.proj.demo ? 'source is not part of the demo' : 'open the folder again to show these lines'}</span>` : ''}<br>` : ''}${c ? `${esc(c.name)}: ${(c.files || []).map(esc).join(' · ')}` : ''}${String(n.tags || '').trim() ? `<br>${String(n.tags).split(/\s+/).filter(x => TAGS[x]).map(x => TAGS[x]).join(' · ')}` : ''}</div>`);
   const B = SB;
   bindTerms(B);
   B.querySelectorAll('[data-sign]').forEach(b => b.onclick = () => { setSign(fid, idx, +b.dataset.sign); openNode(fid, idx); });
@@ -2443,6 +2443,27 @@ async function checkCodeRules() {
     setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to ' + AI + '. Try again.')}</span>`);
   } finally { st.busy = false; st.busyRules = false; render(); }
 }
+// a file and lines the code names: in VS Code it opens the file beside the page with those lines selected; here it shows the lines in place
+function excerpt(src, ln) {
+  const lines = src.split('\n'), a = Math.max(1, (Array.isArray(ln) && ln[0]) | 0 || 1), b = Math.max(a, (Array.isArray(ln) && ln[1]) | 0 || a);
+  const from = Math.max(1, a - 4), to = Math.min(lines.length, Math.min(b, a + 40) + 4);
+  return `<pre class="code">${lines.slice(from - 1, to).map((l, k) => { const n = from + k; return `<span class="ln ${n >= a && n <= b ? 'hl' : ''}"><i>${n}</i>${esc(l)}</span>`; }).join('')}</pre>`;
+}
+function fileLink(file, lines, label, inPanel) {
+  const can = !!st.files?.has(file), open = can && !!window.RB_OPEN;
+  if (!open && inPanel) return esc(label);
+  if (!can) return `<span class="cite">${esc(label)}</span>`;
+  return `<button type="button" class="cite clink" data-open="${esc(file)}" data-lines="${esc((lines || []).join(','))}" title="${open ? 'Open in the editor' : 'Show these lines'}">${esc(label)}${open ? ' ↗' : ''}</button>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-open]'); if (!b || !st.files) return;
+  const file = b.dataset.open, lines = (b.dataset.lines || '').split(',').filter(Boolean).map(Number);
+  if (window.RB_OPEN) { window.RB_OPEN(file, lines); return; }
+  const box = b.closest('.cr-b') || b.parentElement, key = file + '#' + b.dataset.lines, was = box.querySelector(`.peek[data-k="${CSS.escape(key)}"]`);
+  box.querySelectorAll('.peek').forEach(x => x.remove()); box.querySelectorAll('.clink[aria-expanded]').forEach(x => x.removeAttribute('aria-expanded'));
+  if (was || !st.files.has(file)) return;
+  box.insertAdjacentHTML('beforeend', `<div class="peek" data-k="${esc(key)}">${excerpt(st.files.get(file), lines)}</div>`); b.setAttribute('aria-expanded', 'true');
+});
 function renderRules() {
   const c = st.proj.codeRules, docs = st.ruleDocs || [], can = !!sample && !!st.files && !st.proj.demo && docs.length > 0;
   const btn = (label, primary) => can ? `<button class="${primary ? 'btn primary' : 'linkbtn'}" type="button" data-rcheck ${st.busy ? 'disabled' : ''}>${label}</button>` : '';
@@ -2459,7 +2480,7 @@ function renderRules() {
   const buckets = {}; beh.forEach(r => (buckets[r.bucket] = buckets[r.bucket] || []).push(r));
   const worst = rs => Math.min(...rs.map(r => rank[r.status]));
   const row = r => `<details class="crule s-${r.status}"${r.status === 'kept' ? '' : ' open'}><summary><span class="rdot" title="${r.status === 'kept' ? 'kept' : r.status === 'broken' ? 'broken' : 'can’t tell'}"></span><span class="cr-t">${esc(r.rule)}</span><span class="cr-from" title="${esc(r.from)}">${esc(base(r.from))}</span></summary>
-    <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => `<span class="cite">${esc(w.file)}${w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''}</span>`).join('')}</div>` : ''}</div></details>`;
+    <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => fileLink(w.file, w.lines, w.file + (w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''))).join('')}</div>` : ''}</div></details>`;
   const sum = `<div class="rsum"><span class="s-broken"><span class="rdot"></span><b>${n.broken}</b> broken</span><span class="s-unclear"><span class="rdot"></span><b>${n.unclear}</b> can’t tell</span><span class="s-kept"><span class="rdot"></span><b>${n.kept}</b> kept</span></div>`;
   const list = Object.entries(buckets).sort((a, b) => worst(a[1]) - worst(b[1]) || b[1].length - a[1].length).map(([k, rs]) =>
     `<section class="panel crb"><div class="eyebrow">${esc(k)} · ${rs.length}</div>${rs.sort((a, b) => rank[a.status] - rank[b.status]).map(row).join('')}</section>`).join('');
