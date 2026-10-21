@@ -285,6 +285,27 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .trow.off, .nrow.off { opacity:.45; }
 .fhead { margin:24px 0 20px; }
 .fhead .by { margin:6px 0 0; font-size:12px; color:var(--muted); }
+/* API journeys: the entry point drawn like a screen, the overview's screens-to-APIs map, the APIs list in the top bar */
+.apiep { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:16px; display:grid; gap:12px; }
+.ap-h { display:flex; align-items:baseline; gap:8px; min-width:0; } .ap-h b { font-family:var(--mono); font-size:15px; overflow-wrap:anywhere; }
+.ap-m { flex:none; font-family:var(--mono); font-size:11px; font-weight:700; letter-spacing:.04em; padding:2px 7px; border-radius:6px; background:var(--violetBg); color:var(--violet); }
+.ap-sub { font-size:12.5px; color:var(--muted); margin-top:-6px; } .ap-by { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+.ap-sec { display:grid; gap:4px; } .ap-l { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--dim); margin-bottom:2px; }
+.ap-row { display:flex; justify-content:space-between; gap:10px; align-items:baseline; padding:7px 10px; border:1px solid var(--line); border-radius:9px; font-size:13px; cursor:default; }
+.ap-row .tx { font-family:var(--mono); font-size:12.5px; overflow-wrap:anywhere; } .ap-row .mt { color:var(--muted); font-size:12px; text-align:right; }
+.ap-row.warn .tx { color:var(--coral); } .ap-row.accent .tx { color:var(--amber); } .ap-row.dim { opacity:.6; }
+.ap-row[data-case] { cursor:pointer; } .ap-row.pin { border-color:var(--violet); background:var(--violetBg); } .ap-row.fade { opacity:.45; } .ap-row.hl { border-color:var(--amber); background:var(--hi); }
+.jp.apimini { display:flex; gap:6px; align-items:center; font-family:var(--mono); font-size:12px; color:var(--muted); overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.jgroup { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:18px 0 8px; }
+.apimap { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:14px 16px 16px; margin-top:12px; }
+.am-head { display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
+.apimap svg { display:block; overflow:visible; }
+.am-n { cursor:pointer; } .am-n rect { fill:var(--surface2); stroke:var(--line2); } .am-n:hover rect, .am-n:focus rect { stroke:var(--violet); }
+.am-n.lone rect { stroke:var(--coral); stroke-dasharray:4 3; } .am-n.lone .am-s { fill:var(--coral); }
+.am-t { font-size:13px; font-weight:600; fill:var(--ink); } .am-s { font-size:11px; fill:var(--muted); font-family:var(--mono); }
+.am-l { fill:none; stroke:var(--violet); stroke-opacity:.45; stroke-width:1.5; }
+.tabs select.tmore { font-family:var(--mono); font-size:12px; padding:5px 10px; border-radius:999px; border:1px solid var(--line2); background:var(--surface); color:var(--muted); cursor:pointer; }
+.legend .be .bepill { margin-left:4px; }
 .fhead .eyebrow { display:flex; align-items:center; }
 .live.glow { box-shadow:0 0 0 4px color-mix(in srgb,var(--mint) 18%,transparent), 0 0 14px var(--mint); }
 .knobs { margin:0 0 20px; display:grid; gap:10px; }
@@ -1048,18 +1069,27 @@ function shownText(f, n) {
   }
   return { q, a, moved };
 }
-function serverEntry() { const m = {}; st.proj.flows.forEach(f => { if (f.server && f.path?.[0]) m[f.path[0][0]] = f; }); return m; }
+// the one API journey a component starts, for trees that don't name the API they call (several journeys on one component: none)
+function serverEntry() { const m = {}, n = {}; st.proj.flows.forEach(f => { if (f.server && f.path?.[0]) { const k = f.path[0][0]; m[k] = f; n[k] = (n[k] || 0) + 1; } }); Object.keys(n).forEach(k => { if (n[k] > 1) delete m[k]; }); return m; }
 function compTag(c) { return c ? (c.tag || c.name.split(/\s+/)[0]).toUpperCase().slice(0, 12) : ''; }
 function dominantComp(f) { const n = {}; (f.nodes || []).forEach(x => { if (x.comp) n[x.comp] = (n[x.comp] || 0) + 1; }); return Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0]; }
 const provIcon = n => n.prov === 'unasked' ? '?' : n.prov === 'against' ? '✗' : n.prov === 'asked' ? '✓' : '';
 const provText = n => n.prov === 'unasked' ? '? Not in the spec. The spec doesn’t mention it, so the AI or a developer made this call on their own.' : n.prov === 'against' ? '✗ Against the spec. The code does something the spec rules out.' : n.prov === 'asked' ? '✓ The spec asks for this.' : '';
 
 // ---------- rendering ----------
+const API_TABS = 3;
+function apiTabs(srv, b) {
+  const lab = srv.some(f => f.api) ? '<span class="tlab">APIs</span>' : '';
+  if (srv.length <= API_TABS + 1) return lab + srv.map(b).join('');
+  const shown = srv.slice(0, API_TABS); const cur = srv.find(f => f.id === st.view); if (cur && !shown.includes(cur)) shown[API_TABS - 1] = cur;
+  const rest = srv.filter(f => !shown.includes(f));
+  return lab + shown.map(b).join('') + `<select class="tmore" data-apisel aria-label="More APIs"><option value="">+${rest.length} more</option>${rest.map(f => { const j = journeyStats(f); return `<option value="${esc(f.id)}">${esc(f.tab)}${j.n ? ` · ${j.done}/${j.n}` : ''}</option>`; }).join('')}</select>`;
+}
 function navHtml(mini) {
   const p = st.proj, user = p.flows.filter(f => !f.server), srv = p.flows.filter(f => f.server);
   const b = f => { const j = journeyStats(f);
     return `<button role="tab" aria-selected="${st.view === f.id}" data-view="${esc(f.id)}" title="${esc(f.title)}${j.n ? ` · ${j.done} of ${j.n} reviewed` : ' · not read yet'}">${ring(j)}${esc(f.tab)}</button>`; };
-  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === OV}" data-view="${OV}">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === USES}" data-view="${USES}">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + srv.map(b).join('') : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
+  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === OV}" data-view="${OV}">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === USES}" data-view="${USES}">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + apiTabs(srv, b) : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
 }
 function render() {
   const p = st.proj;
@@ -1245,6 +1275,7 @@ function journeyStats(f) {
 const ring = j => { const r = 6, c = 2 * Math.PI * r, k = j.n ? j.done / j.n : 0;
   return `<svg class="ring${j.n ? '' : ' none'}" width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="${r}" class="bg"/>${j.n ? `<circle cx="8" cy="8" r="${r}" class="fg" stroke-dasharray="${(c * k).toFixed(2)} ${c.toFixed(2)}" transform="rotate(-90 8 8)"/>` : ''}</svg>`; };
 function journeyPreview(f) {
+  if (f.api) return `<div class="jp apimini"><span class="ap-m">${esc(f.api.method)}</span>${esc(f.api.path)}</div>`;
   if (isBackendFlow(f) || (f.server && f.path?.length)) {
     const home = (st.proj.places || []).find(p => p.home), ids = (f.path || []).map(x => x[0]).filter(id => compById(id));
     const names = [...(home && ids.length && compById(ids[0]).place !== home.id ? [home.name] : []), ...ids.slice(0, 3).map(id => compById(id).name)];
@@ -1262,8 +1293,28 @@ function journeysPanel() {
       ${journeyPreview(f)}
       <span class="js">${busy ? '<span class="spinner"></span> reading now' : j.n ? `${j.n} decisions${j.check ? ` · <b>${j.check} to check</b>` : ''}` : 'not read yet · open to read it'}</span>
       ${j.n ? `<span class="jbar"><i style="width:${Math.round(100 * j.done / j.n)}%"></i></span><span class="jd">${j.done} of ${j.n} reviewed</span>` : ''}</button>`; };
-  return `<section class="step journeys" id="step-journeys">${stepHead('Check each journey', 'Every path a person takes through your product, from the first tap to what gets saved. Open one to walk its decisions.')}
+  const apis = p.flows.filter(f => f.server && f.api), scr = p.flows.filter(f => !apis.includes(f));
+  if (!apis.length) return `<section class="step journeys" id="step-journeys">${stepHead('Check each journey', 'Every path a person takes through your product, from the first tap to what gets saved. Open one to walk its decisions.')}
     <div class="jgrid">${p.flows.map(card).join('')}</div></section>`;
+  const ci = f => p.flows.indexOf(f);
+  return `<section class="step journeys" id="step-journeys">${stepHead('Check each journey', scr.length ? 'Screens are what a person does; each stops where it calls your server. APIs are what your server does when it is called. The lines show which screen calls which API.' : 'Each API is what your server does when it is called. Open one to walk its decisions.')}
+    ${scr.length ? apiMap(scr, apis) + `<div class="jgroup">Screens</div><div class="jgrid">${scr.map(f => card(f, ci(f))).join('')}</div>` : ''}
+    <div class="jgroup">APIs</div><div class="jgrid apis">${apis.map(f => card(f, ci(f))).join('')}</div></section>`;
+}
+// which screen calls which API: screens on the left, APIs on the right, a line per call. An API no screen calls is marked.
+function apiMap(scr, apis) {
+  const named = scr.some(f => (f.apis || []).length), H = 44, G = 10, W = 760, BW = 250, X2 = W - BW;
+  const h = Math.max(scr.length, apis.length) * (H + G) - G, yOf = (n, k) => (h - (n * (H + G) - G)) / 2 + k * (H + G);
+  const cut = (s, n) => s.length > n ? s.slice(0, n - 1) + '…' : s;
+  const box = (f, x, y, line2, lone) => { const j = journeyStats(f);
+    return `<g class="am-n${lone ? ' lone' : ''}" data-view="${esc(f.id)}" role="button" tabindex="0"><title>${esc(f.title)}</title><rect x="${x}" y="${y}" width="${BW}" height="${H}" rx="9"/><text class="am-t" x="${x + 12}" y="${y + 18}">${esc(cut(f.tab, 26))}</text><text class="am-s" x="${x + 12}" y="${y + 34}">${esc(cut(line2, 34 - (j.n ? 8 : 0)) + (j.n ? ` · ${j.done}/${j.n}` : ''))}</text></g>`; };
+  const ys = new Map(); scr.forEach((f, k) => ys.set(f.id, yOf(scr.length, k) + H / 2)); apis.forEach((f, k) => ys.set(f.id, yOf(apis.length, k) + H / 2));
+  const called = new Set(scr.flatMap(f => f.apis || [])), own = f => /^(JOB|EVENT|CRON|QUEUE|TIMER)$/.test(f.api?.method || '');
+  const lines = scr.flatMap(f => (f.apis || []).filter(a => ys.has(a)).map(a => { const y1 = ys.get(f.id), y2 = ys.get(a);
+    return `<path class="am-l" d="M${BW} ${y1} C${BW + 130} ${y1} ${X2 - 130} ${y2} ${X2} ${y2}"/>`; })).join('');
+  return `<div class="apimap"><div class="am-head"><span>Screens</span><span>APIs</span></div><svg viewBox="0 0 ${W} ${h}" width="100%" role="img" aria-label="Which screen calls which API">${lines}
+    ${scr.map((f, k) => box(f, 0, yOf(scr.length, k), (f.apis || []).length ? `calls ${f.apis.length} API${f.apis.length > 1 ? 's' : ''}` : 'calls no API', false)).join('')}
+    ${apis.map((f, k) => { const lone = named && !called.has(f.id) && !own(f); return box(f, X2, yOf(apis.length, k), lone ? 'no screen calls this' : `${f.api.method} ${f.api.path}`, lone); }).join('')}</svg></div>`;
 }
 function renderMap() {
   const p = st.proj, ds = allDecisions();
@@ -1385,8 +1436,8 @@ function treeRows(f) {
     const v = [];
     if (onPath && vals[n.id]) v.push(`<span class="val" title="${esc(vals[n.id])}">${esc(vals[n.id])}</span>`);
     else if (reached && n.id && isLeaf(nodes, i) && !reached.has(n.id)) v.push(`<span class="cov" title="No test case reaches this outcome">○ never reached</span>`);
-    const be = !f.server && srv[n.comp] && srv[n.comp].id !== f.id ? srv[n.comp] : null;
-    if (be) v.push(`<button type="button" class="bepill" data-view="${esc(be.id)}">review in ${esc(be.tab)} →</button>`);
+    const be = f.server ? null : n.api ? st.proj.flows.find(x => x.id === n.api && x.server) || null : srv[n.comp] && srv[n.comp].id !== f.id ? srv[n.comp] : null;
+    if (be) v.push(`<button type="button" class="bepill" data-view="${esc(be.id)}">continues in ${esc(be.tab)} →</button>`);
     if (st.sel && st.sel.flow === fid && st.sel.idx === i) v.push(`<button type="button" class="openbtn now" data-openn="${i}">viewing →</button>`);
     else if (n.why || n.file || n.prompt) v.push(`<button type="button" class="openbtn" data-openn="${i}">open</button>`);
     out.push(`<div class="trow${cls}" data-node="${i}" data-comp="${esc(n.comp || '')}">
@@ -1464,10 +1515,10 @@ function renderGrid(f) {
     const unex = reached && (pr.nodes || []).length && !(pr.nodes || []).some(id => reached.has(id));
     return `<div class="promise"${ix.length ? ` data-pnodes="${ix.join(',')}"` : ''}><span class="m" style="color:${col}">${pr.status === 'held' ? '✓' : pr.status === 'broken' ? '✗' : '⚠'}</span><span><span class="t">${esc(pr.claim)}</span><br><span class="e" style="color:${col}">${esc(pr.status)} · ${esc(pr.evidence || '')}</span>${unex ? `<br><span class="e" style="color:var(--amber)">⚠ no test case reaches these lines. add one before signing this off</span>` : ''}</span></div>`; }).join('')}</div></div>` : '';
   const rail = `<div class="rail" id="rail">${renderScreen(f)}${renderCases(f)}${promises}</div>`;
-  const srv = st.proj.flows.find(x => x.server && x.id !== f.id);
-  const legend = `<div class="legend"><span>○ unreviewed · ● signed · ? question: click to cycle</span><span>✓ in spec · <b style="color:var(--amber)">?</b> not in spec · <b style="color:var(--coral)">✗</b> against spec</span><span>rule · <b class="how">✦</b> model · <b style="color:var(--amber)">⚑</b> chosen</span>${srv && !f.server ? `<span class="be">tree stops at the service boundary · review in ${esc(srv.tab)} →</span>` : ''}</div>`;
+  const srv = st.proj.flows.find(x => x.server && x.id !== f.id), calls = (f.apis || []).map(id => st.proj.flows.find(x => x.id === id)).filter(Boolean);
+  const legend = `<div class="legend"><span>○ unreviewed · ● signed · ? question: click to cycle</span><span>✓ in spec · <b style="color:var(--amber)">?</b> not in spec · <b style="color:var(--coral)">✗</b> against spec</span><span>rule · <b class="how">✦</b> model · <b style="color:var(--amber)">⚑</b> chosen</span>${f.server ? '' : calls.length ? `<span class="be">tree stops at the API · continues in ${calls.map(x => `<button type="button" class="bepill" data-view="${esc(x.id)}">${esc(x.tab)} →</button>`).join(' ')}</span>` : srv && !srv.api ? `<span class="be">tree stops at the service boundary · review in ${esc(srv.tab)} →</span>` : ''}</div>`;
   const recIdx = st.sel && st.sel.flow === f.id ? st.sel.idx : f.nodes.findIndex(n => n.why);
-  const caseLine = c ? `<div class="caseline"><span class="sw on"></span> what runs when <b>${esc(c.label)}</b>${c.outcome ? ` (${esc(c.outcome)})` : ''} <span class="sw off"></span> skipped in this case · pick another case <span class="wh-phone">under the phone</span><span class="wh-tree">above the tree</span></div>` : '';
+  const caseLine = c ? `<div class="caseline"><span class="sw on"></span> what runs when <b>${esc(c.label)}</b>${c.outcome ? ` (${esc(c.outcome)})` : ''} <span class="sw off"></span> skipped in this case · pick another case <span class="wh-phone">${f.screen?.kind === 'api' ? 'on the left' : 'under the phone'}</span><span class="wh-tree">above the tree</span></div>` : '';
   return `<div class="flowgrid" id="fgrid">${rail}<div style="min-width:0">${renderCases(f, 'above')}<div class="tfilter"><input type="search" id="tfilter" placeholder="Highlight lines: type any word, e.g. label" value="${esc(st.tfilter || '')}" aria-label="Highlight lines in the tree"><span class="fc" id="tfcount"></span><span class="fo" id="tfother"></span></div>${caseLine}${st.reach ? `<div class="reachbar"><span>✦ Lit up: <b>${esc(st.reach.topic || 'your question')}</b></span>${reachChips(f.id)}<button type="button" class="linkbtn" data-rclear>clear</button>${st.reach.jn?.[f.id]?.impact ? `<p class="rb-imp">${esc(st.reach.jn[f.id].impact)}${st.reach.jn[f.id].via ? ` <span class="rb-via">Softer rows only use <b>${esc(st.reach.jn[f.id].via)}</b>, which ${esc(st.reach.topic)} builds.</span>` : ''}</p>` : ''}${st.reach.find && sample ? whatIfBox(st.reach, true) : ''}</div>` : ''}${techSwitch(f)}<div class="panel tree" id="tree">${treeRows(f)}</div>
     <div class="panel recordp" id="record">${recordHtml(f, recIdx)}</div>${legend}</div></div>`;
 }
@@ -1482,6 +1533,7 @@ function recordHtml(f, i) {
 
 function renderScreen(f) {
   const sc = f.screen; if (!sc) return isBackendFlow(f) ? seqDiagram(f) : '';
+  if (sc.kind === 'api') return renderApi(f) + seqDiagram(f);
   const c = curCase(f);
   const dn = ix => ix && ix.length ? ` data-nodes="${ix.join(',')}"` : '';
   const row = r => {
@@ -1502,6 +1554,18 @@ function renderScreen(f) {
     : `<div class="rphone"><div class="rscr">${statusBar()}${body}<div class="rhome"></div></div></div>`}${cap}</div>` : '';
   const offs = off.map(sec => `<div class="panel dashed"><div class="eyebrow">${esc(sec.label || 'Off the screen')}</div>${sec.hint ? `<div class="scr-cap" style="margin:2px 0 8px">${esc(sec.hint)}</div>` : ''}<div class="rweb" style="box-shadow:none;border:0;background:none"><div class="rgroup" style="margin:0">${(sec.rows || []).map(row).join('')}</div></div></div>`).join('');
   return seq + dev + offs;
+}
+// an API journey's entry point, drawn like a screen: what it takes and what it answers. Rows light their decisions.
+function renderApi(f) {
+  const sc = f.screen, c = curCase(f), dn = ix => ix && ix.length ? ` data-nodes="${ix.join(',')}"` : '';
+  const m = String(sc.title || '').match(/^([A-Z]{3,7})\s+(.+)$/), method = f.api?.method || m?.[1] || '', path = f.api?.path || (m ? m[2] : sc.title || f.title);
+  const row = r => { const pin = c && r.case === c.id, fade = c && r.case && !pin;
+    return `<div class="ap-row ${esc(r.tone || '')}${pin ? ' pin' : ''}${fade ? ' fade' : ''}"${dn(r.ix)}${r.case ? ` data-case="${esc(r.case)}" title="Trace this row"` : ''}><span class="tx">${esc(r.text || '')}</span>${r.meta ? `<span class="mt">${esc(r.meta)}</span>` : ''}</div>`; };
+  const callers = st.proj.flows.filter(x => (x.apis || []).includes(f.id));
+  return `<div class="apiep" aria-label="API entry point"><div class="ap-h">${method ? `<span class="ap-m">${esc(method)}</span>` : ''}<b>${esc(path)}</b></div>
+    ${sc.subtitle && !(callers.length && /^called by/i.test(sc.subtitle)) ? `<div class="ap-sub">${esc(sc.subtitle)}</div>` : ''}${callers.length ? `<div class="ap-by">called by ${callers.map(x => `<button type="button" class="bepill" data-view="${esc(x.id)}">← ${esc(x.tab)}</button>`).join('')}</div>` : ''}
+    ${(sc.sections || []).filter(s => (s.rows || []).length).map(s => `<div class="ap-sec"><div class="ap-l">${esc(s.label || '')}</div>${s.rows.map(row).join('')}</div>`).join('')}
+    <div class="scr-cap">drawn by ${AI} from the code · tap a row to trace it</div></div>`;
 }
 // a flow that mostly runs on servers reads as a sequence: who calls whom, and what each side decides
 function isBackendFlow(f) {
@@ -1595,7 +1659,7 @@ function hlComp(id) {
   if (id) document.querySelectorAll(`.unit .comp[data-hl="${CSS.escape(id)}"]`).forEach(e => e.classList.add('hov'));
 }
 function hlScreen(i) {
-  document.querySelectorAll('.rrow.hl,.rbanner.hl,.sd.hl').forEach(e => e.classList.remove('hl'));
+  document.querySelectorAll('.rrow.hl,.rbanner.hl,.sd.hl,.ap-row.hl').forEach(e => e.classList.remove('hl'));
   if (i == null) return;
   document.querySelectorAll('#rail [data-nodes]').forEach(e => { if (e.dataset.nodes.split(',').includes(String(i))) e.classList.add('hl'); });
 }
@@ -1801,6 +1865,7 @@ function bindMain() {
   const tf = $('#tfilter'); if (tf) { tf.oninput = () => { st.tfilter = tf.value; applyFilter(true); }; applyFilter(); }
   const f = st.view === OV ? null : st.proj.flows[flowIdx(st.view)];
   m.querySelectorAll('[data-view]').forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.view); });
+  m.querySelectorAll('select[data-apisel]').forEach(s => s.onchange = () => { if (s.value) go(s.value); });
   m.querySelectorAll('[data-goflow]').forEach(b => { const g = e => { e.stopPropagation(); go(b.dataset.goflow); }; b.onclick = g; b.onkeydown = e => { if (e.key === 'Enter') g(e); }; });
   m.querySelectorAll('.card[data-comp]').forEach(b => { b.onclick = () => openComp(b.dataset.comp); b.onkeydown = e => { if (e.key === 'Enter' && e.target === b) openComp(b.dataset.comp); }; });
   m.querySelectorAll('[data-edge]').forEach(b => b.onclick = e => { e.stopPropagation(); const [c, i] = b.dataset.edge.split(':'); openEdge(c, +i); });
@@ -2043,6 +2108,11 @@ function prevFlowText(f) {
 ${prevTreeText(t).slice(0, 14000)}
 `;
 }
+// the API journeys a trace can point at: "id: METHOD path, title"
+function apiList(f) {
+  const a = st.proj.flows.filter(x => x.server && x.id !== f.id); if (!a.length) return '';
+  return `API JOURNEYS (id: entry point, what it does)${f.server ? '' : '. This screen calls: ' + ((f.apis || []).join(', ') || 'none named')}\n${a.map(x => `${x.id}: ${x.api ? x.api.method + ' ' + x.api.path : ''}, ${x.title}`).join('\n')}\n`;
+}
 function flowPrompt(f) {
   const comps = st.proj.components.map(c => `${c.id}: ${c.name} (${c.role}) files: ${(c.files || []).join(', ')}`).join('\n');
   let code = ''; const cap = 175000;
@@ -2056,7 +2126,9 @@ PRINCIPLES (principles.md)
 ${ENGINE.prompts.principles}
 
 JOURNEY: ${f.title}. ${f.lede || ''}
+${f.server ? `KIND: API journey${f.api ? ` (${f.api.method} ${f.api.path})` : ''}: draw its entry point as the screen, kind "api".` : 'KIND: screen journey: stop where the screen calls one of the API JOURNEYS below.'}
 PATH: ${(f.path || []).map(s => s.join(': ')).join(' → ')}
+${apiList(f)}
 
 ${conceptText()}${prevFlowText(f)}COMPONENTS
 ${comps}
@@ -2113,9 +2185,13 @@ function sanitizeMap(m) {
     id: String(c.id), name: String(c.name || c.id), tag: String(c.tag || '').slice(0, 12), place: String(c.place || places[0]?.id || 'app'), role: String(c.role || ''),
     files: (c.files || []).map(String), contracts: (c.contracts || []).filter(k => k && k.to).map(k => ({ to: String(k.to), what: String(k.what || ''), flag: !!k.flag, why: String(k.why || '') })) }; });
   for (const c of comps) if (!places.some(p => p.id === c.place)) places.push({ id: c.place, name: c.place });
-  const flows = (m.flows || []).filter(f => f && f.id).slice(0, 6).map(f => ({
-    id: String(f.id).replace(/[^\w-]/g, '') || 'f' + Math.random().toString(36).slice(2, 6), tab: String(f.tab || f.id).slice(0, 14), server: !!f.server, title: String(f.title || f.tab || f.id), lede: String(f.lede || ''),
+  // screen journeys (up to 6) and one journey per API entry point (up to 12)
+  const fl = (m.flows || []).filter(f => f && f.id), flows = [...fl.filter(f => !f.server).slice(0, 6), ...fl.filter(f => f.server).slice(0, 12)].map(f => ({
+    id: String(f.id).replace(/[^\w-]/g, '') || 'f' + Math.random().toString(36).slice(2, 6), tab: String(f.tab || f.id).slice(0, 18), server: !!f.server, title: String(f.title || f.tab || f.id), lede: String(f.lede || ''),
+    api: f.server && f.api && (f.api.path || f.api.method) ? { method: String(f.api.method || '').toUpperCase().slice(0, 8), path: String(f.api.path || '').slice(0, 80) } : null,
+    apis: f.server ? [] : (Array.isArray(f.apis) ? f.apis : []).map(x => String(x).replace(/[^\w-]/g, '')),
     path: (f.path || []).filter(s => Array.isArray(s) && ids.has(String(s[0]))).map(s => [String(s[0]), String(s[1] || '')]), files: (f.files || []).map(String) }));
+  const apiIds = new Set(flows.filter(f => f.server).map(f => f.id)); flows.forEach(f => { f.apis = [...new Set(f.apis.filter(x => apiIds.has(x)))]; });
   if (!comps.length || !flows.length) throw { code: 'invalid_json' };
   const pitem = x => typeof x === 'string' ? { text: x.trim(), from: '', on: '' } : { text: String(x?.text || '').trim(), from: String(x?.from || '').slice(0, 80), on: String(x?.on || '').slice(0, 30) };
   const plist = (Array.isArray(m.promises) ? m.promises : []).map(pitem).filter(x => x.text).slice(0, 10);
@@ -2137,11 +2213,11 @@ function sanitizeFlow(r) {
     kind: 'decision', id: String(n.id || ''), d: Math.max(0, Math.min(4, n.d | 0)), q: String(n.q), a: String(n.a || ''), note: String(n.note || ''), noteKind: ['fg', 'ml'].includes(n.noteKind) ? n.noteKind : '',
     prov: ['asked', 'unasked', 'against'].includes(n.prov) ? n.prov : 'unasked', briefRef: String(n.briefRef || ''), how: ['rule', 'model', 'chosen'].includes(n.how) ? n.how : '',
     tags: String(n.tags || ''), comp: String(n.comp || ''), flag: !!n.flag, seen: n.seen === 'plumbing' ? 'plumbing' : 'visible', why: String(n.why || ''), file: String(n.file || ''), lines: Array.isArray(n.lines) ? n.lines.map(x => x | 0) : null, prompt: String(n.prompt || '').slice(0, 2000),
-    brief: String(n.brief || ''), does: String(n.does || ''), notice: String(n.notice || ''), change: String(n.change || '').slice(0, 80) });
+    brief: String(n.brief || ''), does: String(n.does || ''), notice: String(n.notice || ''), api: String(n.api || '').replace(/[^\w-]/g, ''), change: String(n.change || '').slice(0, 80) });
   if (!nodes.some(n => n.kind === 'decision')) throw { code: 'invalid_json' };
   const sc = r.screen && typeof r.screen === 'object' ? r.screen : null;
   const str = x => String(x ?? ''), ids = x => (Array.isArray(x) ? x : []).map(String);
-  const screen = sc ? { kind: ['phone', 'web', 'none'].includes(sc.kind) ? sc.kind : 'phone', title: str(sc.title), subtitle: str(sc.subtitle), action: str(sc.action).slice(0, 16),
+  const screen = sc ? { kind: ['phone', 'web', 'api', 'none'].includes(sc.kind) ? sc.kind : 'phone', title: str(sc.title), subtitle: str(sc.subtitle), action: str(sc.action).slice(0, 16),
     banner: sc.banner && sc.banner.text ? { text: str(sc.banner.text), nodes: ids(sc.banner.nodes) } : null,
     sections: (Array.isArray(sc.sections) ? sc.sections : []).slice(0, 6).map(x => ({ label: str(x.label), hint: str(x.hint), offscreen: !!x.offscreen,
       rows: (Array.isArray(x.rows) ? x.rows : []).slice(0, 8).map(y => ({ glyph: str(y.glyph).slice(0, 10), text: str(y.text), meta: str(y.meta), tone: ['accent', 'warn', 'dim'].includes(y.tone) ? y.tone : '', nodes: ids(y.nodes), case: str(y.case) })) })) } : null;
@@ -2592,7 +2668,7 @@ function exportReport() {
   const p = st.proj, pr = p.promises, cs = p.concepts || [];
   const map = { app: p.app, places: p.places, components: p.components, concepts: cs, screens: p.screens,
     glossary: (p.glossary || []).filter(g => !cs.some(c => c.name === g.term)),
-    flows: p.flows.map(f => ({ id: f.id, tab: f.tab, server: f.server, title: f.title, lede: f.lede, path: f.path, files: f.files })),
+    flows: p.flows.map(f => ({ id: f.id, tab: f.tab, server: f.server, api: f.api || null, apis: f.apis || [], title: f.title, lede: f.lede, path: f.path, files: f.files })),
     promises: pr ? pr.items.map(t => ({ text: t, on: pr.on?.[t] || '', from: pr.from?.[t] || '' })) : [], rules: pr?.rules || [], conflicts: pr?.conflicts || [], promiseSource: pr?.source || 'inferred' };
   const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, calls: f.calls, promises: f.promises, by: f.by || null, read: f.read || {}, diff: f.diff || null }]));
   const files = st.files ? Object.fromEntries([...st.files].map(([k, t]) => [k, fhash(t)])) : {};
