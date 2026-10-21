@@ -20,6 +20,7 @@ The reviewer reads it top to bottom, like a story of the journey.
 The reviewer is the person who uses this product, not a developer. Follow `principles.md`; in short:
 
 - Name each section after what the person does at that moment ("When you press return"), never after what the code does ("Committing the add").
+- When a section matches a part of the `screen`, start its name with that part's `label`, exactly as the screen shows it, then what the person does: screen part "Incident" → section "Incident: when it opens". The highlighted screen part and its tree section then read as one thing.
 - Write every `q` as if the person asked it about their own action ("Is the answer back yet?"), and `a` as what happens to them. Code is the subject of nothing.
 - Use the concept names from the map exactly, never another name for the same thing.
 - Allowed words = the SPEC, the concepts, and what the product's own screens say. Words that exist only in the code are banned from `q`, `a` and `note` of visible rows: model, model call, LLM, guard, handler, commit, submit, cache, parse, payload, null, flag, state, callback, async, await, thread, fetch, resolve. The same goes for the code's own names for things: setting names (ATTEST_REQUIRED, isPro), status codes (503, 401), and nicknames the code gives its parts unless the spec or the screens use them. Say what the person sees instead ("the server refuses", "the app's own guess"). Rows marked "plumbing" may use developer words. The check rejects code words in visible rows and sections.

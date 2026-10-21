@@ -27,7 +27,9 @@ follow these.
    The text stays about what happens to the person.
 6. **One name per thing.** A concept has one name everywhere: in the overview,
    every tree, every finding. No synonyms ("the log" and "log list"), no
-   function or variable names.
+   function or variable names. A tree section that matches a part of the
+   screen starts with that part's label: "Incident" on the screen →
+   "Incident: when it opens" in the tree.
 
 ## What a row says
 
