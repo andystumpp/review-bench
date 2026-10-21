@@ -62,7 +62,8 @@ failed check (`fix.md`) and the prompt you copy for your AI (`changes.md`).
 `run.md` is the task for this action. `core.mjs` is the check every answer has
 to pass. `assemble.mjs` does the parts that need no AI: what changed since the
 last report, checking what the AI wrote, and building the report. `app.html` is
-the Review Bench page; `inline.mjs` builds the prompts and the check into it.
+the Review Bench page, the one source for the report, the VS Code extension
+and the claude.ai version; `inline.mjs` builds the prompts and the check into it.
 
 ## Licence
 

@@ -962,6 +962,7 @@ const FLOW_COLORS = ['var(--mint)','var(--violet)','var(--amber)','var(--coral)'
 const PLACE_COLORS = ['var(--ink)','var(--violet)','var(--amber)','var(--mint)','var(--coral)','var(--muted)'];
 const TAGS = { W:'saves data', I:'can’t undo', $:'costs $', U:'screen only' };
 
+// ---------- demo data: none here; tools/claude-ai.mjs adds a demo for the claude.ai version ----------
 const DEMO = null;
 
 // ---------- state ----------
@@ -2662,7 +2663,6 @@ document.addEventListener('drop', async e => {
   setPhase('error', { err: 'single' });
 });
 
-const DEMO_PLUMBING = new Set(['persist()', 'Stored answer still good?', 'Otherwise, ask the backend', 'Remote reachable?', 'Ask the backend', 'Model unreachable?', 'Who is calling?', 'Is the body sane?', 'Charge the quota', 'Log one line', 'Body too large or malformed?', 'Row’s aisle not in the live list?', 'Overlap clears the floor?', 'Name already in use?']);
 function loadDemo() { if (!DEMO) return; st.proj = JSON.parse(JSON.stringify(DEMO)); st.proj.flows.forEach(linkScreen); st.proj.flows.forEach(f => (f.nodes || []).forEach(n => { if (n.kind === 'decision' && DEMO_PLUMBING.has(n.q)) n.seen = 'plumbing'; })); st.files = null; st.briefs = []; st.cases = {}; st.knobs = {}; st.reach = null; st.review = store.get('rb.review.' + DEMO.key, {}); st.view = OV; st.sel = null; st.src = 'demo'; store.set('rb.src', 'demo'); render(); window.scrollTo(0, 0); }
 
 // a host that brings the code (VS Code) reads it straight away; the last analysis of it opens with one click
