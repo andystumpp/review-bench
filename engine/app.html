@@ -286,23 +286,19 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .fhead { margin:24px 0 20px; }
 .fhead .eyebrow { display:flex; align-items:center; }
 .live.glow { box-shadow:0 0 0 4px color-mix(in srgb,var(--mint) 18%,transparent), 0 0 14px var(--mint); }
-.knobs { margin:0 0 20px; border:1px solid var(--line); border-radius:16px; background:var(--surface); }
-.knobs > button { width:100%; display:flex; align-items:center; gap:12px; padding:12px 16px; background:none; border:0; cursor:pointer; text-align:left; }
-.knobs > button .sum { flex:1; min-width:0; font-family:var(--mono); font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.knobs > button .adj { font-family:var(--mono); font-size:11.5px; color:var(--amber); white-space:nowrap; }
-.knob-body { padding:4px 16px 16px; display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px 24px; }
-.knob label { display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:600; }
-.knob label span { font-family:var(--mono); font-weight:500; color:var(--amber); white-space:nowrap; }
-.knob input[type=range] { width:100%; accent-color:var(--amber); }
-.knob small { display:block; font-family:var(--mono); font-size:11px; color:var(--muted); }
-.knob small.chg { color:var(--amber); }
-.knob-card { grid-column:1/-1; border:1px dashed var(--line2); border-radius:12px; padding:10px 14px; font-size:13px; color:var(--muted); }
-.knob-card b { color:var(--ink); }
-.knob-card button { font:inherit; color:var(--amber); background:none; border:0; padding:0; cursor:pointer; text-decoration:underline; }
+.knobs { margin:0 0 20px; display:grid; gap:10px; }
+.knobs-h { display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+.knobs-cap { font-size:12.5px; color:var(--muted); }
+.kchips { display:flex; flex-wrap:wrap; gap:8px; }
+.kchip { display:grid; grid-template-columns:auto auto; align-items:baseline; gap:2px 8px; max-width:340px; padding:8px 12px; border:1px solid var(--line); border-radius:12px; background:var(--surface); font:inherit; text-align:left; cursor:pointer; color:var(--ink); }
+.kchip:hover { border-color:var(--amber); }
+.kchip .kl { font-size:12.5px; font-weight:600; }
+.kchip b { font-family:var(--mono); font-size:12.5px; font-weight:600; color:var(--amber); }
+.kchip .kw { grid-column:1/-1; font-size:12px; color:var(--muted); }
 .flowgrid { display:grid; grid-template-columns:360px minmax(0,1fr); gap:24px; align-items:start; }
 @media (max-width:980px) { .flowgrid { grid-template-columns:1fr; } }
-.rail { display:grid; gap:14px; position:sticky; top:var(--stickTop,140px); max-height:calc(100vh - var(--stickTop,140px) - 16px); overflow-y:auto; overscroll-behavior:contain; padding-bottom:8px; scrollbar-width:thin; }
-@media (max-width:980px) { .rail { position:static; max-height:none; overflow:visible; } }
+/* full height, scrolls with the page: the screen and the test cases under it are all in view without scrolling inside */
+.rail { display:grid; gap:14px; align-content:start; padding-bottom:8px; }
 .panel { background:var(--surface); border:1px solid var(--line); border-radius:18px; padding:18px; min-width:0; }
 .panel.dashed { background:transparent; border-style:dashed; }
 .concepts { margin:0 0 22px; display:grid; gap:12px; }
@@ -687,16 +683,16 @@ pre.prompt { margin:0; font-family:var(--mono); font-size:11.5px; line-height:1.
 .seq-g { display:grid; grid-template-columns:repeat(var(--n),minmax(0,1fr)); row-gap:6px; position:relative; }
 .seq-life { justify-self:center; width:0; border-left:1.5px dashed var(--line2); }
 .seq-a { grid-row:1; text-align:center; z-index:1; padding:0 3px; }
-.seq-a b { display:block; font-size:12.5px; font-weight:800; background:var(--surface2); border:1px solid var(--line2); border-radius:10px; padding:6px 4px; overflow-wrap:anywhere; line-height:1.2; }
+.seq-a b { display:block; font-size:12.5px; hyphens:auto; font-weight:800; background:var(--surface2); border:1px solid var(--line2); border-radius:10px; padding:6px 4px; overflow-wrap:anywhere; line-height:1.2; }
 .seq-a span { display:block; font-family:var(--mono); font-size:9.5px; color:var(--muted); margin-top:3px; text-transform:uppercase; letter-spacing:.06em; }
-.seq-m { position:relative; height:34px; z-index:1; }
+.seq-m { position:relative; height:42px; z-index:1; }
 .seq-m .ln { position:absolute; bottom:8px; left:var(--l); right:var(--r); border-top:1.5px solid var(--ink); }
 .seq-m.back .ln { border-top-style:dashed; border-color:var(--muted); }
 .seq-m .ln::after { content:""; position:absolute; top:-5.5px; border:5px solid transparent; }
 .seq-m:not(.rev) .ln::after { right:-2px; border-left:8px solid var(--ink); border-right:0; }
 .seq-m.rev .ln::after { left:-2px; border-right:8px solid var(--ink); border-left:0; }
 .seq-m.back:not(.rev) .ln::after { border-left-color:var(--muted); } .seq-m.back.rev .ln::after { border-right-color:var(--muted); }
-.seq-m .lb { position:absolute; bottom:12px; left:var(--l); right:var(--r); text-align:center; font-family:var(--mono); font-size:10.5px; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; padding:0 4px; }
+.seq-m .lb { position:absolute; bottom:12px; left:var(--l); right:var(--r); text-align:center; font-family:var(--mono); font-size:10.5px; line-height:1.25; color:var(--ink); padding:0 4px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden; }
 .seq-m.back .lb { color:var(--muted); }
 .seq-act { z-index:1; background:var(--surface); border:1px solid var(--line2); border-left:3px solid var(--fc,var(--violet)); border-radius:4px 10px 10px 4px; padding:4px 0; margin:0 2px; }
 .seq-act .sd { display:flex; gap:7px; align-items:baseline; padding:3px 8px; font-size:12px; line-height:1.35; cursor:pointer; }
@@ -981,7 +977,6 @@ const st = {
   streamText: '',
   cases: {},          // flow id -> pinned case id
   knobs: {},          // flow id -> {knob id: value}
-  knobsOpen: {},
   tech: store.get('rb.tech', false),   // show plumbing rows in every tree
   unfold: {},          // flow id#section index -> plumbing shown for that section
   src: null,           // 'demo' | 'proj' | null (landing)
@@ -1020,7 +1015,7 @@ const nodeIdx = (f, id) => (f.nodes || []).findIndex(n => n.id && n.id === id);
 const cmp = (a, op, b) => op === '>=' ? a >= b : op === '>' ? a > b : op === '<' ? a < b : op === '<=' ? a <= b : a === b;
 const opTxt = op => ({ '>=':'≥', '<=':'≤' }[op] || op);
 function knobVal(f, k) { const v = st.knobs[f.id]?.[k.id]; return v == null ? k.value : v; }
-function fmtK(k, v) { return (k.fmt != null ? Number(v).toFixed(k.fmt) : String(Math.round(v * 100) / 100)) + (k.unit || ''); }
+function fmtK(k, v) { const u = k.unit || ''; return (k.fmt != null ? Number(v).toFixed(k.fmt) : String(Math.round(v * 100) / 100)) + (/^[a-z]/i.test(u) ? ' ' : '') + u; }
 function curCase(f) { const cs = f.cases || []; if (!cs.length) return null; return cs.find(c => c.id === st.cases[f.id]) || cs[0]; }
 function casePath(f, c) {
   const s = new Set(c.nodes || []);
@@ -1081,8 +1076,8 @@ function render() {
   const f = st.view === OV ? null : p.flows[flowIdx(st.view)];
   $('#main').innerHTML = (st.view === USES ? navHtml() + renderUses() : f ? renderFlow(f) : navHtml() + renderMap()) +
     `<p class="footnote">${p.demo
-      ? 'Demo data is transcribed from the Review Bench v16 mockup of Restock. Test cases and the settings are scripted from that mockup; moving a setting re-runs the cases against the new value, it does not change any code. Source lines are not loaded in the demo. Sign-offs are kept in this browser.'
-      : 'Map, flow trees and test cases are written by an AI reading your code, so treat them as a reviewer’s first read, not ground truth. Every decision links to the lines it cites; check them. Moving a setting re-runs the test cases on paper, not the code. Sign-offs are kept in this browser, per project.'}</p>`;
+      ? 'Demo data is transcribed from the Review Bench v16 mockup of Restock. Test cases are scripted from that mockup. Source lines are not loaded in the demo. Sign-offs are kept in this browser.'
+      : 'Map, flow trees and test cases are written by an AI reading your code, so treat them as a reviewer’s first read, not ground truth. Every decision links to the lines it cites; check them. Sign-offs are kept in this browser, per project.'}</p>`;
   bindMain(); placeSheet(); measure();
 }
 
@@ -1428,21 +1423,13 @@ function connHtml(via) {
   const label = v.replace(/[⇅⟶⟵→←↔⟷]/g, '').trim();
   return `<span class="conn">${label ? `<small>${esc(label)}</small>` : ''}<i>${arrow}</i></span>`;
 }
+// the numbers the code picked (thresholds, limits, timeouts): each with the decision it sets; hover or tap to find that row
 function renderKnobs(f) {
   const ks = f.knobs || []; if (!ks.length) return '';
-  const open = !!st.knobsOpen[f.id];
-  const moved = ks.filter(k => knobVal(f, k) !== k.value);
-  const sum = ks.map(k => `${k.label.toLowerCase()} ${fmtK(k, knobVal(f, k))}`).join(' · ');
-  return `<div class="knobs" id="knobs"><button type="button" id="knobT" aria-expanded="${open}"><span class="eyebrow" style="color:var(--amber)">Settings</span><span class="sum" id="knobSum">${esc(sum)}</span><span class="adj">${open ? '▴ close' : '▾ adjust'}</span></button>${open ? `<div class="knob-body">${ks.map(k => {
-    const v = knobVal(f, k);
-    return `<div class="knob"><label for="k-${esc(k.id)}">${esc(k.label)}<span id="kv-${esc(k.id)}">${esc(fmtK(k, v))}</span></label><input type="range" id="k-${esc(k.id)}" data-knob="${esc(k.id)}" min="${k.min}" max="${k.max}" step="${k.step}" value="${v}"><small id="ks-${esc(k.id)}">${knobNote(f, k)}</small></div>`;
-  }).join('')}<div class="knob-card"><b>${ks.length} value${ks.length > 1 ? 's were' : ' was'} chosen, not derived.</b> Moving one re-runs the test cases against it, so you see which paths it decides. It doesn’t change the code.${moved.length ? ` <button type="button" data-kreset="1">reset ${moved.length}</button>` : ''}</div></div>` : ''}</div>`;
-}
-function knobNote(f, k) {
-  const v = knobVal(f, k), n = f.nodes ? f.nodes[nodeIdx(f, k.node)] : null;
-  if (v === k.value) return `⚑ chosen · ${esc(n ? n.q : k.node)}`;
-  const flips = (f.cases || []).filter(c => c.measures?.[k.id] != null && k.op && cmp(c.measures[k.id], k.op, v) !== cmp(c.measures[k.id], k.op, k.value)).length;
-  return `<span style="color:var(--amber)">~ code says ${esc(fmtK(k, k.value))}${flips ? ` · ${flips} case${flips > 1 ? 's' : ''} take another path` : ''}</span>`;
+  return `<div class="knobs" id="knobs"><div class="knobs-h"><span class="eyebrow">Numbers picked in the code</span><span class="knobs-cap">Nobody asked for these values; the code chose them. Hover one to find it in the tree.</span></div><div class="kchips">${ks.map(k => {
+    const i = nodeIdx(f, k.node), n = i >= 0 ? f.nodes[i] : null;
+    return `<button type="button" class="kchip"${i >= 0 ? ` data-pnodes="${i}"` : ''}><span class="kl">${esc(k.label)}</span><b>${esc(fmtK(k, k.value))}</b>${n ? `<span class="kw">${esc(n.q)}${n.a ? ` → ${esc(n.a)}` : ''}</span>` : ''}</button>`;
+  }).join('')}</div></div>`;
 }
 
 function renderCases(f, where) {
@@ -1524,7 +1511,49 @@ function isBackendFlow(f) {
   const home = (st.proj.places || []).find(p => p.home)?.id, comps = f.nodes.filter(n => n.kind === 'decision' && n.comp).map(n => compById(n.comp)).filter(Boolean);
   return comps.length > 0 && comps.filter(c => c.place !== home).length >= comps.length / 2;
 }
+// one lane's box of decisions in the sequence diagram
+function seqAct(f, to, n, row, ix, c, inCase) {
+  const span = to === n - 1 && n > 1 ? `${to}/span 2` : `${to + 1}/-1`;
+  return `<div class="seq-act" style="grid-row:${row};grid-column:${span}">${ix.map(i => { const nd = f.nodes[i], fade = inCase && nd.id && !inCase.has(nd.id), v = c?.values?.[nd.id];
+    return `<div class="sd${nd.flag ? ' flag' : ''}${fade ? ' fade' : ''}" data-nodes="${i}" title="${esc(nd.a || '')}"><i>${nd.flag ? '⚑' : nd.prov === 'unasked' ? '?' : '·'}</i><b>${esc(nd.q || '')}</b>${v ? `<span>${esc(v)}</span>` : ''}</div>`; }).join('')}</div>`;
+}
+function seqArrow(from, to, row, label, back) {
+  const a = Math.min(from, to), b = Math.max(from, to), span = b - a + 1, inset = (50 / span).toFixed(2) + '%';
+  return `<div class="seq-m${to < from ? ' rev' : ''}${back ? ' back' : ''}" style="grid-row:${row};grid-column:${a + 1}/span ${span};--l:${inset};--r:${inset}"><span class="lb" title="${esc(label)}">${esc(label)}</span><span class="ln"></span></div>`;
+}
+function seqFrame(f, lanes, rows, r, c) {
+  const n = lanes.length;
+  const head = lanes.map((l, k) => `<div class="seq-a" style="grid-column:${k + 1}"><b>${esc(l.name)}</b>${l.where ? `<span>${esc(l.where)}</span>` : ''}</div>`).join('');
+  const life = lanes.map((l, k) => `<div class="seq-life" style="grid-column:${k + 1};grid-row:1/${r}"></div>`).join('');
+  return `<div class="seq" aria-label="Sequence diagram"><div class="seq-g" style="--n:${n}">${life}${head}${rows}</div><div class="seq-cap">who calls whom${c ? ` · case: ${esc(c.label)}` : ''} · tap a line to find it in the tree</div></div>`;
+}
+// with the journey's list of calls: one arrow per call, in order, so three database reads show as three arrows
+function seqFromCalls(f, calls) {
+  const places = st.proj.places || [], ids = [];
+  calls.forEach(x => [x.from, x.to].forEach(id => { if (!ids.includes(id)) ids.push(id); }));
+  const lanes = ids.slice(0, 6).map(id => { const k = compById(id), pl = k && places.find(p => p.id === k.place); return { id, name: k ? k.name : id, where: pl ? pl.name : k ? '' : 'outside' }; });
+  const li = id => lanes.findIndex(l => l.id === id), n = lanes.length;
+  const c = curCase(f), inCase = c ? new Set(c.nodes || []) : null, ix = id => nodeIdx(f, id);
+  const said = new Set(calls.flatMap(x => (x.nodes || []).map(ix)).filter(i => i >= 0));
+  // decisions no call names sit with their part, after the first call that reaches it
+  const rest = {}; f.nodes.forEach((nd, i) => { if (nd.kind !== 'decision' || said.has(i)) return; const k = li(nd.comp) >= 0 ? nd.comp : lanes[0].id; (rest[k] = rest[k] || []).push(i); });
+  let rows = '', r = 2;
+  const take = id => { const xs = rest[id] || []; delete rest[id]; return xs; };
+  const first = take(lanes[0].id); if (first.length) rows += seqAct(f, 0, n, r++, first, c, inCase);
+  for (const x of calls) {
+    const a = li(x.from), b = li(x.to); if (a < 0 || b < 0) continue;
+    rows += seqArrow(a, b, r++, x.what || 'calls', false);
+    // what the called part decides itself, then what the caller decides with its answer
+    const own = take(x.to), after = (x.nodes || []).map(ix).filter(i => i >= 0 && !own.includes(i));
+    if (own.length) rows += seqAct(f, b, n, r++, own, c, inCase);
+    if (after.length) rows += seqAct(f, a, n, r++, after, c, inCase);
+  }
+  for (const [id, xs] of Object.entries(rest)) if (li(id) >= 0) rows += seqAct(f, li(id), n, r++, xs, c, inCase);
+  return seqFrame(f, lanes, rows, r, c);
+}
 function seqDiagram(f) {
+  const calls = (f.calls || []).filter(x => x.from && x.to && x.from !== x.to);
+  if (calls.length) return seqFromCalls(f, calls);
   const places = st.proj.places || [], home = places.find(p => p.home);
   const pathIds = (f.path || []).map(x => x[0]).filter(id => compById(id));
   const order = [...new Set([...pathIds, ...f.nodes.filter(n => n.kind === 'decision' && compById(n.comp)).map(n => n.comp)])];
@@ -1537,8 +1566,7 @@ function seqDiagram(f) {
   const firstSec = f.nodes.find(x => x.kind === 'section')?.q || '';
   const req = (firstSec.match(/(GET|POST|PUT|PATCH|DELETE)\s+\S+/) || [])[0] || pathLbl(order[0]) || 'request';
   let rows = '', r = 2, cur = caller ? 0 : li(order[0]);
-  const msg = (from, to, label, back) => { if (from === to || from < 0 || to < 0) return; const a = Math.min(from, to), b = Math.max(from, to), span = b - a + 1, inset = (50 / span).toFixed(2) + '%';
-    rows += `<div class="seq-m${to < from ? ' rev' : ''}${back ? ' back' : ''}" style="grid-row:${r++};grid-column:${a + 1}/span ${span};--l:${inset};--r:${inset}"><span class="lb" title="${esc(label)}">${esc(label)}</span><span class="ln"></span></div>`; };
+  const msg = (from, to, label, back) => { if (from === to || from < 0 || to < 0) return; rows += seqArrow(from, to, r++, label, back); };
   const groups = []; f.nodes.forEach((nd, i) => { if (nd.kind !== 'decision') return; const k = li(nd.comp) >= 0 ? nd.comp : order[0]; const g = groups[groups.length - 1]; if (g && g.comp === k) g.ix.push(i); else groups.push({ comp: k, ix: [i] }); });
   const visited = new Set(); let prevComp = null;
   groups.forEach((g, gi) => {
@@ -1546,15 +1574,10 @@ function seqDiagram(f) {
     if (gi === 0 && caller) msg(0, to, req, false);
     else if (prevComp != null) msg(li(prevComp), to, visited.has(g.comp) ? 'answer' : (pathLbl(g.comp) || 'calls'), visited.has(g.comp));
     visited.add(g.comp); prevComp = g.comp;
-    const span = to === n - 1 && n > 1 ? `${to}/span 2` : `${to + 1}/-1`;
-    const fi = st.proj.flows.findIndex(x => x.id === f.id);
-    rows += `<div class="seq-act" style="grid-row:${r++};grid-column:${span}">${g.ix.map(i => { const nd = f.nodes[i], fade = inCase && nd.id && !inCase.has(nd.id), v = c?.values?.[nd.id];
-      return `<div class="sd${nd.flag ? ' flag' : ''}${fade ? ' fade' : ''}" data-nodes="${i}" title="${esc(nd.a || '')}"><i>${nd.flag ? '⚑' : nd.prov === 'unasked' ? '?' : '·'}</i><b>${esc(nd.q || '')}</b>${v ? `<span>${esc(v)}</span>` : ''}</div>`; }).join('')}</div>`;
+    rows += seqAct(f, to, n, r++, g.ix, c, inCase);
   });
   if (caller && prevComp != null) msg(li(prevComp), 0, c?.outcome || 'response', true);
-  const head = lanes.map((l, k) => `<div class="seq-a" style="grid-column:${k + 1}"><b>${esc(l.name)}</b>${l.where ? `<span>${esc(l.where)}</span>` : ''}</div>`).join('');
-  const life = lanes.map((l, k) => `<div class="seq-life" style="grid-column:${k + 1};grid-row:1/${r}"></div>`).join('');
-  return `<div class="seq" aria-label="Sequence diagram"><div class="seq-g" style="--n:${n}">${life}${head}${rows}</div><div class="seq-cap">who calls whom${c ? ` · case: ${esc(c.label)}` : ''} · tap a line to find it in the tree</div></div>`;
+  return seqFrame(f, lanes, rows, r, c);
 }
 function linkScreen(f) {
   const sc = f.screen; if (!sc || !f.nodes) return;
@@ -1880,15 +1903,6 @@ function bindMain() {
     const traced = st.proj.flows.filter(x => x.nodes).length;
     setStatus(changed && traced ? `Saved. ${traced} flow${traced > 1 ? 's were' : ' was'} traced against the old list; trace again to recheck.` : 'Saved. Open a flow to trace it against these promises.');
   };
-  const kt = $('#knobT'); if (kt) kt.onclick = () => { st.knobsOpen[st.view] = !st.knobsOpen[st.view]; render(); };
-  m.querySelectorAll('[data-knob]').forEach(inp => inp.oninput = () => {
-    const k = f.knobs.find(x => x.id === inp.dataset.knob); const v = +inp.value;
-    (st.knobs[f.id] = st.knobs[f.id] || {})[k.id] = v;
-    $('#kv-' + CSS.escape(k.id)).textContent = fmtK(k, v); $('#ks-' + CSS.escape(k.id)).innerHTML = knobNote(f, k);
-    $('#knobSum').textContent = f.knobs.map(x => `${x.label.toLowerCase()} ${fmtK(x, knobVal(f, x))}`).join(' · ');
-    refreshGrid();
-  });
-  const kr = m.querySelector('[data-kreset]'); if (kr) kr.onclick = () => { st.knobs[st.view] = {}; render(); };
 }
 
 // ---------- reading code ----------
@@ -2137,10 +2151,11 @@ function sanitizeFlow(r) {
     const value = num(k.value); let min = num(k.min), max = num(k.max), step = num(k.step);
     if (min == null || min > value) min = value > 0 ? 0 : value * 2; if (max == null || max < value) max = value === 0 ? 1 : Math.abs(value) * 2;
     if (!step || step <= 0) step = (max - min) / 20;
-    const dec = String(step).includes('.') ? String(step).split('.')[1].length : 0;
-    return { id: str(k.id), label: str(k.label || k.id).slice(0, 24), node: str(k.node), value, min, max, step, unit: str(k.unit).slice(0, 8), text: str(k.text), fmt: dec || null,
+    const dec = (x => x.includes('.') ? x.split('.')[1].length : 0)(String(num(k.step) ? step : value));
+    return { id: str(k.id), label: str(k.label || k.id).slice(0, 24), node: str(k.node), value, min, max, step, unit: str(k.unit).slice(0, 16), text: str(k.text), fmt: dec || null,
       op: ['>=', '>', '<', '<='].includes(k.op) ? k.op : '', pass: nodeIds.has(str(k.pass)) ? str(k.pass) : '', fail: nodeIds.has(str(k.fail)) ? str(k.fail) : '' }; });
-  return { lede: String(r.lede || ''), nodes, screen, cases, knobs, promises: (r.promises || []).filter(p => p && p.claim).map(p => ({ claim: String(p.claim), status: ['held', 'partial', 'broken'].includes(p.status) ? p.status : 'partial', evidence: String(p.evidence || ''), nodes: ids(p.nodes) })) };
+  const calls = (Array.isArray(r.calls) ? r.calls : []).filter(x => x && x.from && x.to).slice(0, 30).map(x => ({ from: str(x.from), to: str(x.to), what: str(x.what).slice(0, 60), nodes: ids(x.nodes).filter(id => nodeIds.has(id)) }));
+  return { lede: String(r.lede || ''), nodes, screen, cases, knobs, calls, promises: (r.promises || []).filter(p => p && p.claim).map(p => ({ claim: String(p.claim), status: ['held', 'partial', 'broken'].includes(p.status) ? p.status : 'partial', evidence: String(p.evidence || ''), nodes: ids(p.nodes) })) };
 }
 function projKey(label, stats) { return 'p-' + label.replace(/\W+/g, '-').toLowerCase() + '-' + stats.files + '-' + stats.lines; }
 function persistProj() { if (!st.proj.demo) { store.set('rb.proj', st.proj); snapshot(); } }
@@ -2189,7 +2204,7 @@ async function traceFlow(fid) {
     const r = sanitizeFlow(await askChecked(flowPrompt(f), t => checkTrace(t, comps, hasFile, 'journey', false)));
     f.read = read;
     const before = f.nodes ? f.nodes.map((n, i) => ({ id: n.id, sign: signOf(f.id, i) })) : [];
-    f.nodes = r.nodes; f.promises = r.promises; f.screen = r.screen; f.cases = r.cases; f.knobs = r.knobs; delete st.cases[f.id]; delete st.knobs[f.id]; if (r.lede) f.lede = r.lede; linkScreen(f);
+    f.nodes = r.nodes; f.promises = r.promises; f.screen = r.screen; f.calls = r.calls; f.cases = r.cases; f.knobs = r.knobs; delete st.cases[f.id]; delete st.knobs[f.id]; if (r.lede) f.lede = r.lede; linkScreen(f);
     compareWithPrev(f, before);
     setStatus(`Traced <b>${esc(f.title)}</b>: ${r.nodes.filter(n => n.kind === 'decision').length} decisions, ${r.nodes.filter(n => n.flag).length} flagged.`);
     persistProj();
@@ -2576,7 +2591,7 @@ function exportReport() {
     glossary: (p.glossary || []).filter(g => !cs.some(c => c.name === g.term)),
     flows: p.flows.map(f => ({ id: f.id, tab: f.tab, server: f.server, title: f.title, lede: f.lede, path: f.path, files: f.files })),
     promises: pr ? pr.items.map(t => ({ text: t, on: pr.on?.[t] || '', from: pr.from?.[t] || '' })) : [], rules: pr?.rules || [], conflicts: pr?.conflicts || [], promiseSource: pr?.source || 'inferred' };
-  const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, promises: f.promises, read: f.read || {}, diff: f.diff || null }]));
+  const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, calls: f.calls, promises: f.promises, read: f.read || {}, diff: f.diff || null }]));
   const files = st.files ? Object.fromEntries([...st.files].map(([k, t]) => [k, fhash(t)])) : {};
   return { format: 'review-bench-report', version: 1, label: p.label, key: p.key, at: new Date().toISOString(), commit: p.report?.commit || '', prevAt: null, files, map, traces, notes: [] };
 }
