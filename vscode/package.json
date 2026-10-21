@@ -2,7 +2,7 @@
   "name": "review-bench",
   "displayName": "Review Bench",
   "description": "Every decision your code makes, journey by journey, in plain words. Uses the Copilot you are signed in to.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "andystumpp",
   "license": "SEE LICENSE IN LICENSE",
   "repository": { "type": "git", "url": "https://github.com/andystumpp/review-bench" },

@@ -337,7 +337,8 @@ button.clink { cursor:pointer; font:inherit; } button.clink:hover { color:var(--
 .peek { margin-top:10px; } .clink[aria-expanded] { border-color:var(--amber); }
 .cr-w { display:flex; flex-wrap:wrap; gap:6px; } .cr-w .cite { font-family:var(--mono); font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--surface2); border:1px solid var(--line); color:var(--ink); }
 .cr-lint > summary { cursor:pointer; list-style:none; } .cr-l { cursor:default; } .cr-l .cr-t { color:var(--muted); font-size:13.5px; }
-.cr-docs { font-size:12px; color:var(--dim); margin:14px 0 0; } .cr-docs code, .panel.empty code { font-size:11.5px; }
+.cr-docs { font-size:12px; color:var(--dim); margin:14px 0 0; } .cr-doc, .panel.empty code { font-family:var(--mono); font-size:11.5px; }
+button.cr-from, button.cr-doc { background:none; border:0; padding:0; cursor:pointer; text-decoration:underline; text-decoration-color:var(--line2); text-underline-offset:3px; } button.cr-doc { color:inherit; } button.cr-from:hover, button.cr-doc:hover { color:var(--amber); } button.clink.cr-from { font-family:var(--mono); font-size:11px; color:var(--dim); } button.clink.cr-doc { font-family:var(--mono); font-size:11.5px; } button.clink.cr-from:hover, button.clink.cr-from[aria-expanded] { color:var(--amber); }
 /* API journeys: the entry point drawn like a screen, the overview's screens-to-APIs map, the APIs list in the top bar */
 .apiep { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:16px; display:grid; gap:12px; }
 .ap-h { display:flex; align-items:baseline; gap:8px; min-width:0; } .ap-h b { font-family:var(--mono); font-size:15px; overflow-wrap:anywhere; }
@@ -2405,7 +2406,7 @@ function cleanRules(c) {
   const t = (x, k) => String(x ?? '').slice(0, k);
   const rules = c.rules.filter(r => r && r.rule).slice(0, 80).map((r, i) => {
     const kind = r.kind === 'style' ? 'style' : 'behaviour';
-    return { id: t(r.id || 'r' + (i + 1), 20), rule: t(r.rule, 160), bucket: t(r.bucket, 30) || 'Other', from: t(r.from, 200), kind,
+    return { id: t(r.id || 'r' + (i + 1), 20), rule: t(r.rule, 160), bucket: t(r.bucket, 30) || 'Other', from: t(r.from, 200), at: Array.isArray(r.at) ? r.at.slice(0, 2).map(Number).filter(Number.isFinite) : [], kind,
       status: kind === 'style' ? null : ['kept', 'broken', 'unclear'].includes(r.status) ? r.status : 'unclear', why: t(r.why, 300),
       where: (Array.isArray(r.where) ? r.where : []).filter(w => w && w.file).slice(0, 12).map(w => ({ file: t(w.file, 300), lines: Array.isArray(w.lines) ? w.lines.slice(0, 2).map(Number).filter(Number.isFinite) : [] })) };
   });
@@ -2413,7 +2414,7 @@ function cleanRules(c) {
 }
 function rulesPrompt() {
   const tree = [...st.files.keys()].map(p => `${p} (${st.files.get(p).split('\n').length})`).join('\n').slice(0, 20000);
-  let docs = ''; for (const d of st.ruleDocs) { const add = `=== ${d.path}\n${d.text}\n\n`; if (docs.length + add.length > 40000) { docs += add.slice(0, Math.max(0, 40000 - docs.length)) + '\n… (cut)\n'; break; } docs += add; }
+  let docs = ''; for (const d of st.ruleDocs) { const add = numbered(d.path, d.text, 40000) + '\n'; if (docs.length + add.length > 40000) { docs += add.slice(0, Math.max(0, 40000 - docs.length)) + '\n… (cut)\n'; break; } docs += add; }
   let total = 0; for (const t of st.files.values()) total += t.length;
   const code = total <= 165000 ? [...st.files].map(([p, t]) => numbered(p, t, 60000)).join('\n') : condense(st.files, 165000);
   return `${ENGINE.prompts.rules}
@@ -2445,24 +2446,30 @@ async function checkCodeRules() {
 }
 // a file and lines the code names: in VS Code it opens the file beside the page with those lines selected; here it shows the lines in place
 function excerpt(src, ln) {
+  if (!Array.isArray(ln) || !ln.length) { const ls = src.split('\n').slice(0, 60); return `<pre class="code">${ls.map((l, k) => `<span class="ln"><i>${k + 1}</i>${esc(l)}</span>`).join('')}</pre>`; }
   const lines = src.split('\n'), a = Math.max(1, (Array.isArray(ln) && ln[0]) | 0 || 1), b = Math.max(a, (Array.isArray(ln) && ln[1]) | 0 || a);
   const from = Math.max(1, a - 4), to = Math.min(lines.length, Math.min(b, a + 40) + 4);
   return `<pre class="code">${lines.slice(from - 1, to).map((l, k) => { const n = from + k; return `<span class="ln ${n >= a && n <= b ? 'hl' : ''}"><i>${n}</i>${esc(l)}</span>`; }).join('')}</pre>`;
 }
-function fileLink(file, lines, label, inPanel) {
-  const can = !!st.files?.has(file), open = can && !!window.RB_OPEN;
+// code files and the instruction files the code rules came from
+const srcOf = file => st.files?.get(file) ?? (st.files ? st.ruleDocs.find(d => d.path === file)?.text : undefined);
+function fileLink(file, lines, label, inPanel, cls = 'cite') {
+  const can = srcOf(file) != null, open = can && !!window.RB_OPEN;
   if (!open && inPanel) return esc(label);
-  if (!can) return `<span class="cite">${esc(label)}</span>`;
-  return `<button type="button" class="cite clink" data-open="${esc(file)}" data-lines="${esc((lines || []).join(','))}" title="${open ? 'Open in the editor' : 'Show these lines'}">${esc(label)}${open ? ' ↗' : ''}</button>`;
+  if (!can) return `<span class="${cls}" title="${esc(file)}">${esc(label)}</span>`;
+  return `<button type="button" class="${cls} clink" data-open="${esc(file)}" data-lines="${esc((lines || []).join(','))}" title="${open ? 'Open in the editor' : 'Show these lines'}">${esc(label)}${open ? ' ↗' : ''}</button>`;
 }
 document.addEventListener('click', e => {
   const b = e.target.closest('[data-open]'); if (!b || !st.files) return;
+  if (b.closest('summary')) e.preventDefault(); // a link on a rule's line opens the file, not the rule
   const file = b.dataset.open, lines = (b.dataset.lines || '').split(',').filter(Boolean).map(Number);
   if (window.RB_OPEN) { window.RB_OPEN(file, lines); return; }
-  const box = b.closest('.cr-b') || b.parentElement, key = file + '#' + b.dataset.lines, was = box.querySelector(`.peek[data-k="${CSS.escape(key)}"]`);
-  box.querySelectorAll('.peek').forEach(x => x.remove()); box.querySelectorAll('.clink[aria-expanded]').forEach(x => x.removeAttribute('aria-expanded'));
-  if (was || !st.files.has(file)) return;
-  box.insertAdjacentHTML('beforeend', `<div class="peek" data-k="${esc(key)}">${excerpt(st.files.get(file), lines)}</div>`); b.setAttribute('aria-expanded', 'true');
+  const rule = b.closest('details.crule'); if (rule) rule.open = true;
+  const box = rule?.querySelector('.cr-b') || b.closest('.cr-b') || b.closest('.cr-l, .cr-docs') || b.parentElement, key = file + '#' + b.dataset.lines, was = box.querySelector(`.peek[data-k="${CSS.escape(key)}"]`);
+  const near = box.matches('.cr-l, .cr-docs') ? box.parentElement : box, was2 = near.querySelector(`:scope > .peek[data-k="${CSS.escape(key)}"]`);
+  box.querySelectorAll('.peek').forEach(x => x.remove()); near.querySelectorAll(':scope > .peek').forEach(x => x.remove()); box.querySelectorAll('.clink[aria-expanded]').forEach(x => x.removeAttribute('aria-expanded'));
+  if (was || was2 || srcOf(file) == null) return;
+  box.insertAdjacentHTML(box.matches('.cr-l, .cr-docs') ? 'afterend' : 'beforeend', `<div class="peek" data-k="${esc(key)}">${excerpt(srcOf(file), lines)}</div>`); b.setAttribute('aria-expanded', 'true');
 });
 function renderRules() {
   const c = st.proj.codeRules, docs = st.ruleDocs || [], can = !!sample && !!st.files && !st.proj.demo && docs.length > 0;
@@ -2479,13 +2486,14 @@ function renderRules() {
   const rank = { broken: 0, unclear: 1, kept: 2 }, base = x => String(x || '').split('/').pop();
   const buckets = {}; beh.forEach(r => (buckets[r.bucket] = buckets[r.bucket] || []).push(r));
   const worst = rs => Math.min(...rs.map(r => rank[r.status]));
-  const row = r => `<details class="crule s-${r.status}"${r.status === 'kept' ? '' : ' open'}><summary><span class="rdot" title="${r.status === 'kept' ? 'kept' : r.status === 'broken' ? 'broken' : 'can’t tell'}"></span><span class="cr-t">${esc(r.rule)}</span><span class="cr-from" title="${esc(r.from)}">${esc(base(r.from))}</span></summary>
+  const fromLink = r => fileLink(r.from, r.at, base(r.from) + (r.at.length ? ':' + r.at[0] : ''), false, 'cr-from');
+  const row = r => `<details class="crule s-${r.status}"${r.status === 'kept' ? '' : ' open'}><summary><span class="rdot" title="${r.status === 'kept' ? 'kept' : r.status === 'broken' ? 'broken' : 'can’t tell'}"></span><span class="cr-t">${esc(r.rule)}</span>${fromLink(r)}</summary>
     <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => fileLink(w.file, w.lines, w.file + (w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''))).join('')}</div>` : ''}</div></details>`;
   const sum = `<div class="rsum"><span class="s-broken"><span class="rdot"></span><b>${n.broken}</b> broken</span><span class="s-unclear"><span class="rdot"></span><b>${n.unclear}</b> can’t tell</span><span class="s-kept"><span class="rdot"></span><b>${n.kept}</b> kept</span></div>`;
   const list = Object.entries(buckets).sort((a, b) => worst(a[1]) - worst(b[1]) || b[1].length - a[1].length).map(([k, rs]) =>
     `<section class="panel crb"><div class="eyebrow">${esc(k)} · ${rs.length}</div>${rs.sort((a, b) => rank[a.status] - rank[b.status]).map(row).join('')}</section>`).join('');
-  const lint = style.length ? `<details class="panel crb cr-lint"><summary><span class="eyebrow">Left to your linter · ${style.length}</span></summary>${style.map(r => `<div class="cr-l"><span class="cr-t">${esc(r.rule)}</span><span class="cr-from" title="${esc(r.from)}">${esc(base(r.from))}</span></div>`).join('')}</details>` : '';
-  return head + sum + `<div class="rbucks">${list}${lint}</div><p class="cr-docs">Read from ${c.docs.map(d => `<code>${esc(d)}</code>`).join(', ') || 'your instruction files'}. ${AI} read the code, nothing was run.</p>`;
+  const lint = style.length ? `<details class="panel crb cr-lint"><summary><span class="eyebrow">Left to your linter · ${style.length}</span></summary>${style.map(r => `<div class="cr-l"><span class="cr-t">${esc(r.rule)}</span>${fromLink(r)}</div>`).join('')}</details>` : '';
+  return head + sum + `<div class="rbucks">${list}${lint}</div><p class="cr-docs">Read from ${c.docs.map(d => fileLink(d, [], d, false, 'cr-doc')).join(', ') || 'your instruction files'}. ${AI} read the code, nothing was run.</p>`;
 }
 // ---------- a conversation per decision: ask what it means, or say what it should do instead ----------
 const cite = c => `<span class="cite" title="${esc(c.what || '')}">${esc(c.file)}${c.lines ? ':' + esc(String(c.lines[0])) : ''}</span>`;
