@@ -65,6 +65,7 @@ function withHost(html, state) {
   window.RB_STORE = { get: (k, d) => (k in state && state[k] != null ? state[k] : d), set: (k, v) => { state[k] = v; vs.postMessage({ type: 'store', k, v }); } };
   window.RB_FILES = new Promise((ok, no) => (files = { ok, no }));
   window.RB_SAVE = report => vs.postMessage({ type: 'save', report });
+  window.RB_OPEN = (file, lines) => vs.postMessage({ type: 'open', file, lines });
   addEventListener('message', e => { const m = e.data || {}, w = wait[m.id];
     if (m.type === 'files') files.ok(m); else if (m.type === 'files-error') files.no(m);
     else if (m.type === 'ai-text') w?.onText?.({ text: m.text });
@@ -92,6 +93,18 @@ async function onMessage(ctx, me, m) {
     finally { running.delete(m.id); cts.dispose(); }
   } else if (m.type === 'ai-stop') running.get(m.id)?.cancel();
   else if (m.type === 'save') save(ctx, root, m.report);
+  else if (m.type === 'open') openAt(root, m.file, m.lines);
+}
+
+// a file the page names (a path inside the folder), opened beside the page with its lines selected
+async function openAt(root, file, lines) {
+  const parts = String(file || '').split('/');
+  if (!file || parts.some(x => x === '..' || x === '') || /^[a-z]:/i.test(file)) return;
+  try {
+    const doc = await vscode.workspace.openTextDocument(vscode.Uri.joinPath(root.uri, ...parts));
+    const last = doc.lineCount - 1, a = Math.min(last, Math.max(0, (lines?.[0] || 1) - 1)), b = Math.min(last, Math.max(a, (lines?.[1] || lines?.[0] || 1) - 1));
+    await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, selection: new vscode.Range(a, 0, b, doc.lineAt(b).text.length) });
+  } catch { vscode.window.showErrorMessage(`Review Bench could not open ${file}.`); }
 }
 
 // the workspace as the page's folder: every text file under 400 KB, paths under the folder's name like a picked folder
