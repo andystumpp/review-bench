@@ -73,3 +73,22 @@ export function checkTrace(t, comps, has, at = 'journey', needRead = true) {
   }
   return { errs, warns };
 }
+// the code rules checklist (rules.md): every behaviour rule has a status; a broken one names where
+export function checkRules(r, has, at = 'rules') {
+  const errs = [], warns = [], seen = new Set();
+  const rs = Array.isArray(r?.rules) ? r.rules : null;
+  if (!rs) { errs.push(`${at}: "rules" must be a list.`); return { errs, warns }; }
+  for (const x of rs) {
+    const where = `${at} rule "${x?.id || x?.rule}"`;
+    if (!x?.id) errs.push(`${where}: no id.`); else if (seen.has(x.id)) errs.push(`${where}: id used twice.`); seen.add(x?.id);
+    if (!x?.rule) errs.push(`${where}: no rule text.`); else if (words(x.rule) > 18) warns.push(`${where}: rule longer than 14 words.`);
+    if (x?.kind !== 'style' && x?.kind !== 'behaviour') errs.push(`${where}: kind must be "behaviour" or "style".`);
+    if (x?.kind === 'behaviour') {
+      if (!['kept', 'broken', 'unclear'].includes(x.status)) errs.push(`${where}: status must be "kept", "broken" or "unclear".`);
+      if (x.status === 'broken' && !(x.where || []).length) errs.push(`${where}: broken but no "where". Name the file and lines that break it, or make it "unclear".`);
+      if (x.status !== 'kept' && !x.why) errs.push(`${where}: no "why".`);
+    }
+    for (const w of x?.where || []) if (!w?.file || !has(w.file)) errs.push(`${where}: file "${w?.file}" does not exist.`);
+  }
+  return { errs, warns };
+}
