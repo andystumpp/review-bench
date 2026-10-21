@@ -283,8 +283,32 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .onlypill:hover { filter:brightness(1.1); }
 .trow.cf, .nrow.cf { background:var(--violetBg); }
 .trow.off, .nrow.off { opacity:.45; }
-.fhead { margin:24px 0 20px; }
-.fhead .by { margin:6px 0 0; font-size:12px; color:var(--muted); }
+.fhead { margin:24px 0 20px; grid-template-columns:minmax(0,1fr); }
+.fhead .lede { margin:10px 0 0; font-size:16px; max-width:80ch; }
+.fhead .by { margin:8px 0 0; font-size:12px; color:var(--muted); } .fhead .by .linkbtn { font-size:12px; }
+/* full-window app: a fixed sidebar of journeys on the left (like the files of a pull request); under 1000px it folds back into the top bar */
+#side { display:none; }
+@media (min-width:1001px) {
+  body.app { --sideW:244px; }
+  body.app header.top .wrap { max-width:none; }
+  body.app main.wrap { max-width:none; margin:0 0 0 var(--sideW); padding-inline:28px 32px; padding-top:20px; }
+  body.app #side:not([hidden]) { display:flex; flex-direction:column; gap:2px; position:fixed; z-index:16; top:var(--headH,64px); left:0; bottom:0; width:var(--sideW); overflow-y:auto; padding:16px 12px 24px; border-right:1px solid var(--line); background:var(--bg); }
+  body.app #main > .tabs { display:none; }
+  body.app .ov { grid-template-columns:minmax(0,1fr); margin-top:0; } body.app .ov-rail { display:none; }
+  body.app .flowgrid { grid-template-columns:clamp(320px,24vw,400px) minmax(0,1fr); }
+}
+.sd-i { display:flex; align-items:center; gap:8px; width:100%; text-align:left; border:0; background:none; border-radius:8px; padding:6px 8px; font-size:13.5px; color:var(--ink); cursor:pointer; min-width:0; }
+.sd-i:hover { background:var(--surface2); } .sd-i[aria-current="page"] { background:var(--violetBg); color:var(--ink); font-weight:600; box-shadow:inset 3px 0 0 var(--violet); }
+.sd-i .ring { flex:none; } .sd-i .ring .bg { fill:none; stroke:var(--line2); stroke-width:2.5; } .sd-i .ring .fg { fill:none; stroke:var(--mint); stroke-width:2.5; stroke-linecap:round; }
+.sd-t { flex:1; min-width:0; display:grid; line-height:1.3; } .sd-t small { font-family:var(--mono); font-size:10.5px; color:var(--muted); font-weight:400; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sd-c { flex:none; font-family:var(--mono); font-size:10.5px; font-weight:600; color:var(--amber); background:var(--amberBg); border-radius:999px; padding:0 7px; }
+.sd-ov { font-weight:600; }
+.side-steps { display:grid; gap:1px; margin:0 0 6px 18px; padding-left:8px; border-left:1px solid var(--line); }
+.side-steps button { display:grid; text-align:left; border:0; background:none; border-radius:6px; padding:4px 8px; font-size:12.5px; color:var(--muted); cursor:pointer; line-height:1.3; }
+.side-steps button small { font-size:11px; color:var(--dim); } .side-steps button:hover, .side-steps button.on { color:var(--ink); background:var(--surface2); }
+.sd-find { margin:10px 0 4px; } .sd-find input { width:100%; font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line2); border-radius:8px; background:var(--surface); color:var(--ink); }
+.sd-reach { display:flex; align-items:center; gap:4px; } .sd-reach .sd-i { flex:1; }
+.sd-g { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:14px 8px 4px; }
 /* API journeys: the entry point drawn like a screen, the overview's screens-to-APIs map, the APIs list in the top bar */
 .apiep { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:16px; display:grid; gap:12px; }
 .ap-h { display:flex; align-items:baseline; gap:8px; min-width:0; } .ap-h b { font-family:var(--mono); font-size:15px; overflow-wrap:anywhere; }
@@ -299,7 +323,7 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .jgroup { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:18px 0 8px; }
 .apimap { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:14px 16px 16px; margin-top:12px; }
 .am-head { display:flex; justify-content:space-between; font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
-.apimap svg { display:block; overflow:visible; }
+.apimap svg { display:block; overflow:visible; max-width:860px; margin:0 auto; } .apimap .am-head { max-width:860px; margin-inline:auto; }
 .am-n { cursor:pointer; } .am-n rect { fill:var(--surface2); stroke:var(--line2); } .am-n:hover rect, .am-n:focus rect { stroke:var(--violet); }
 .am-n.lone rect { stroke:var(--coral); stroke-dasharray:4 3; } .am-n.lone .am-s { fill:var(--coral); }
 .am-t { font-size:13px; font-weight:600; fill:var(--ink); } .am-s { font-size:11px; fill:var(--muted); font-family:var(--mono); }
@@ -864,6 +888,7 @@ body.sheet-open .trow.sel { box-shadow:inset 3px 0 0 var(--violet); }
 .flowgrid .rail { transition:opacity .3s; }
 body.aside-sheet .flowgrid { transform:translateX(var(--shift,0)); position:relative; z-index:3; }
 body.aside-sheet .flowgrid .rail { opacity:0; pointer-events:none; }
+#treecol { transition:margin-right .42s cubic-bezier(.22,.8,.3,1); } body.aside-sheet.sheet-open #treecol { margin-right:var(--cut,0px); }
 body.aside-sheet #tree { box-shadow:12px 0 28px -18px var(--shadow); }
 body.aside-sheet aside.sheet { left:var(--sl,auto); right:auto; width:var(--sw,560px); top:var(--st,var(--stickTop,140px)); z-index:2; background:var(--surface); backdrop-filter:none;
   border-radius:0 18px 18px 0; box-shadow:0 24px 60px -30px var(--shadow); padding-left:20px; transform:translateX(-100%); visibility:hidden;
@@ -954,6 +979,7 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
 
 <div class="toast" id="toast" hidden><span id="status" aria-live="polite"></span><button class="pill" id="stopBtn" type="button" hidden>Stop</button><button class="x" id="toastX" type="button" aria-label="Dismiss">✕</button></div>
 
+<nav id="side" aria-label="Journeys" hidden></nav>
 <main class="wrap" id="main"></main>
 
 <aside class="sheet" id="sheet" aria-label="Detail">
@@ -1077,6 +1103,22 @@ const provIcon = n => n.prov === 'unasked' ? '?' : n.prov === 'against' ? '✗' 
 const provText = n => n.prov === 'unasked' ? '? Not in the spec. The spec doesn’t mention it, so the AI or a developer made this call on their own.' : n.prov === 'against' ? '✗ Against the spec. The code does something the spec rules out.' : n.prov === 'asked' ? '✓ The spec asks for this.' : '';
 
 // ---------- rendering ----------
+// the left sidebar on wide windows: Overview (and its steps while it is open), search, then screens and APIs. It stays put while the page scrolls.
+function sideHtml() {
+  const p = st.proj, user = p.flows.filter(f => !f.server), srv = p.flows.filter(f => f.server), hasApi = srv.some(f => f.api);
+  const item = f => { const j = journeyStats(f);
+    return `<button type="button" class="sd-i" data-view="${esc(f.id)}"${st.view === f.id ? ' aria-current="page"' : ''} title="${esc(f.title)}${j.n ? ` · ${j.done} of ${j.n} reviewed` : ' · not read yet'}">${ring(j)}<span class="sd-t">${esc(f.tab)}${f.api ? `<small>${esc(f.api.method)} ${esc(f.api.path)}</small>` : ''}</span>${st.busyFlow === f.id ? '<span class="spinner"></span>' : j.check ? `<b class="sd-c" title="${j.check} to check">${j.check}</b>` : ''}</button>`; };
+  const steps = st.view === OV && st.ovSteps ? `<div class="side-steps">${st.ovSteps.map(s => `<button type="button" data-step="${s.id}">${esc(s.t)}<small>${esc(s.sub)}</small></button>`).join('')}</div>` : '';
+  return `<button type="button" class="sd-i sd-ov" data-view="${OV}"${st.view === OV ? ' aria-current="page"' : ''}>Overview</button>${steps}
+    <form class="sd-find" data-find role="search"><input type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form>
+    ${st.reach ? `<div class="sd-reach"><button type="button" class="sd-i" data-view="${USES}"${st.view === USES ? ' aria-current="page"' : ''}>✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></div>` : ''}
+    ${user.length ? `<div class="sd-g">${hasApi ? 'Screens' : 'Journeys'}</div>${user.map(item).join('')}` : ''}
+    ${srv.length ? `<div class="sd-g">${hasApi ? 'APIs' : 'Server'}</div>${srv.map(item).join('')}` : ''}`;
+}
+$('#side').addEventListener('click', e => {
+  const v = e.target.closest('[data-view]'); if (v && st.proj) { go(v.dataset.view); return; }
+  const s = e.target.closest('[data-step]'); if (s) { const t = $('#step-' + s.dataset.step); if (t) { if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ behavior: 'smooth', block: 'start' }); } }
+});
 const API_TABS = 3;
 function apiTabs(srv, b) {
   const lab = srv.some(f => f.api) ? '<span class="tlab">APIs</span>' : '';
@@ -1096,6 +1138,7 @@ function render() {
   const landing = !st.src || !p;
   $('#srcBtn').hidden = landing; $('#progress').hidden = landing;
   $('#saveBtn').hidden = landing || !window.RB_SAVE || !st.proj || st.proj.demo;
+  document.body.classList.toggle('app', !landing); $('#side').hidden = landing;
   if (landing) { $('#main').innerHTML = renderLanding(); bindLanding(); measure(); return; }
   $('#srcKind').textContent = p.demo ? 'demo' : (p.stats ? p.stats.files.toLocaleString() + ' files' : 'code');
   $('#srcName').textContent = p.demo ? p.app.name : (p.label || p.app?.name || 'project');
@@ -1109,6 +1152,7 @@ function render() {
     `<p class="footnote">${p.demo
       ? 'Demo data is transcribed from the Review Bench v16 mockup of Restock. Test cases are scripted from that mockup. Source lines are not loaded in the demo. Sign-offs are kept in this browser.'
       : 'Map, flow trees and test cases are written by an AI reading your code, so treat them as a reviewer’s first read, not ground truth. Every decision links to the lines it cites; check them. Sign-offs are kept in this browser, per project.'}</p>`;
+  $('#side').innerHTML = sideHtml();
   bindMain(); placeSheet(); measure();
 }
 
@@ -1342,6 +1386,7 @@ function renderMap() {
     ['journeys', 'Check each journey', journeysPanel(), `${jDone} of ${p.flows.length} done`],
     ['decisions', 'Review the decisions', decisionsPanel(), openDec ? `${openDec} open` : 'all decided'],
     ['promises', 'What must stay true', promisesPanel(), `${kept} kept`]].filter(x => x[2]);
+  st.ovSteps = steps.map(([id, t, , sub]) => ({ id, t, sub }));
   const body = steps.map(([, , h], k) => h.replaceAll('\u0001N', k + 1).replaceAll('\u0001T', steps.length)).join('');
   const k = ds.length ? signed / ds.length : 0, R = 30, C = 2 * Math.PI * R;
   const rail = `<aside class="ov-rail"><div class="ov-prog"><svg width="72" height="72" viewBox="0 0 72 72" aria-hidden="true"><defs><linearGradient id="ovg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F5B544"/><stop offset=".5" stop-color="#FF7A6B"/><stop offset="1" stop-color="#B59CFF"/></linearGradient></defs><circle cx="36" cy="36" r="${R}" class="bg"/><circle cx="36" cy="36" r="${R}" class="fg" stroke-dasharray="${(C * k).toFixed(2)} ${C.toFixed(2)}" transform="rotate(-90 36 36)"/></svg><b>${Math.round(100 * k)}%</b>
@@ -1493,7 +1538,8 @@ function renderCases(f, where) {
 function renderFlow(f) {
   if (!f) return '';
   const p = st.proj, fi = flowIdx(f.id);
-  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1>${f.by ? `<p class="by">Traced with ${esc(f.by.model)} · ${esc(fmtWhen(f.by.at))}</p>` : ''}</div><div><p>${esc(f.lede || '')}</p>${f.nodes && st.files && sample && !p.demo ? `<p style="margin-top:12px"><button class="btn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button></p>` : ''}</div></section>`;
+  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1>${f.lede ? `<p class="lede">${esc(f.lede)}</p>` : ''}${(() => { const re = f.nodes && st.files && sample && !p.demo ? `<button class="linkbtn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button>` : '';
+    return f.by || re ? `<p class="by">${f.by ? `Traced with ${esc(f.by.model)} · ${esc(fmtWhen(f.by.at))}` : ''}${f.by && re ? ' · ' : ''}${re}</p>` : ''; })()}</div></section>`;
   const arch = renderArch(f);
   if (!f.nodes) {
     const can = !!sample && !p.demo && st.files;
@@ -1519,7 +1565,7 @@ function renderGrid(f) {
   const legend = `<div class="legend"><span>○ unreviewed · ● signed · ? question: click to cycle</span><span>✓ in spec · <b style="color:var(--amber)">?</b> not in spec · <b style="color:var(--coral)">✗</b> against spec</span><span>rule · <b class="how">✦</b> model · <b style="color:var(--amber)">⚑</b> chosen</span>${f.server ? '' : calls.length ? `<span class="be">tree stops at the API · continues in ${calls.map(x => `<button type="button" class="bepill" data-view="${esc(x.id)}">${esc(x.tab)} →</button>`).join(' ')}</span>` : srv && !srv.api ? `<span class="be">tree stops at the service boundary · review in ${esc(srv.tab)} →</span>` : ''}</div>`;
   const recIdx = st.sel && st.sel.flow === f.id ? st.sel.idx : f.nodes.findIndex(n => n.why);
   const caseLine = c ? `<div class="caseline"><span class="sw on"></span> what runs when <b>${esc(c.label)}</b>${c.outcome ? ` (${esc(c.outcome)})` : ''} <span class="sw off"></span> skipped in this case · pick another case <span class="wh-phone">${f.screen?.kind === 'api' ? 'on the left' : 'under the phone'}</span><span class="wh-tree">above the tree</span></div>` : '';
-  return `<div class="flowgrid" id="fgrid">${rail}<div style="min-width:0">${renderCases(f, 'above')}<div class="tfilter"><input type="search" id="tfilter" placeholder="Highlight lines: type any word, e.g. label" value="${esc(st.tfilter || '')}" aria-label="Highlight lines in the tree"><span class="fc" id="tfcount"></span><span class="fo" id="tfother"></span></div>${caseLine}${st.reach ? `<div class="reachbar"><span>✦ Lit up: <b>${esc(st.reach.topic || 'your question')}</b></span>${reachChips(f.id)}<button type="button" class="linkbtn" data-rclear>clear</button>${st.reach.jn?.[f.id]?.impact ? `<p class="rb-imp">${esc(st.reach.jn[f.id].impact)}${st.reach.jn[f.id].via ? ` <span class="rb-via">Softer rows only use <b>${esc(st.reach.jn[f.id].via)}</b>, which ${esc(st.reach.topic)} builds.</span>` : ''}</p>` : ''}${st.reach.find && sample ? whatIfBox(st.reach, true) : ''}</div>` : ''}${techSwitch(f)}<div class="panel tree" id="tree">${treeRows(f)}</div>
+  return `<div class="flowgrid" id="fgrid">${rail}<div id="treecol" style="min-width:0">${renderCases(f, 'above')}<div class="tfilter"><input type="search" id="tfilter" placeholder="Highlight lines: type any word, e.g. label" value="${esc(st.tfilter || '')}" aria-label="Highlight lines in the tree"><span class="fc" id="tfcount"></span><span class="fo" id="tfother"></span></div>${caseLine}${st.reach ? `<div class="reachbar"><span>✦ Lit up: <b>${esc(st.reach.topic || 'your question')}</b></span>${reachChips(f.id)}<button type="button" class="linkbtn" data-rclear>clear</button>${st.reach.jn?.[f.id]?.impact ? `<p class="rb-imp">${esc(st.reach.jn[f.id].impact)}${st.reach.jn[f.id].via ? ` <span class="rb-via">Softer rows only use <b>${esc(st.reach.jn[f.id].via)}</b>, which ${esc(st.reach.topic)} builds.</span>` : ''}</p>` : ''}${st.reach.find && sample ? whatIfBox(st.reach, true) : ''}</div>` : ''}${techSwitch(f)}<div class="panel tree" id="tree">${treeRows(f)}</div>
     <div class="panel recordp" id="record">${recordHtml(f, recIdx)}</div>${legend}</div></div>`;
 }
 function recordHtml(f, i) {
@@ -1682,9 +1728,13 @@ function placeSheet(pre) {
   const col = flow && innerWidth <= 980, fg = flow && !col && $('#fgrid'), rail = fg && fg.querySelector('.rail'), tr = fg && $('#tree');
   let aside = false;
   if (tr && rail) {
-    const shift = rail.offsetWidth + 24, dx = new DOMMatrix(getComputedStyle(fg).transform).m41 || 0;
-    const right = tr.getBoundingClientRect().right - dx - shift, w = innerWidth - right - 12;
-    if (w >= 380) { aside = true; document.body.style.setProperty('--shift', -shift + 'px'); /* on body, so a re-rendered tree starts already shifted instead of gliding again */ SHEET.style.setProperty('--sl', Math.round(right - 20) + 'px'); SHEET.style.setProperty('--sw', Math.round(shift + 20) + 'px'); /* ends where the tree ended: the page keeps its width */ alignSheet(); }
+    const shift = rail.offsetWidth + 24, dx = new DOMMatrix(getComputedStyle(fg).transform).m41 || 0, cut0 = parseFloat(getComputedStyle($('#treecol')).marginRight) || 0; // the width the tree has given up so far (it may be mid-glide)
+    const right = tr.getBoundingClientRect().right - dx - shift + cut0, w = innerWidth - right - 12;
+    if (w >= 380) { aside = true;
+      // the detail is at least ~40% of the page: past the phone's spot, the tree gives up the rest of the width it needs (the page keeps its width)
+      const was = cut0, want = Math.min(720, Math.max(520, Math.round(fg.offsetWidth * .42))), cut = Math.max(0, Math.min(want - (shift + 20), tr.offsetWidth + was - 420));
+      document.body.style.setProperty('--shift', -shift + 'px'); /* on body, so a re-rendered tree starts already shifted instead of gliding again */ document.body.style.setProperty('--cut', cut + 'px');
+      SHEET.style.setProperty('--sl', Math.round(right - cut - 20) + 'px'); SHEET.style.setProperty('--sw', Math.round(shift + 20 + cut) + 'px'); /* ends where the tree ended */ alignSheet(); }
   }
   document.body.classList.toggle('col-sheet', !!col); document.body.classList.toggle('aside-sheet', aside);
   const host = (col && $('#fgrid')) || document.body; if (SHEET.parentNode !== host) host.appendChild(SHEET);
@@ -1939,7 +1989,7 @@ function bindMain() {
   m.querySelectorAll('.ov-steps [data-step], .ov-hood').forEach(b => b.onclick = () => { const t = $('#step-' + b.dataset.step); if (!t) return; if (t.tagName === 'DETAILS') t.open = true; t.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   // the active step is the last one whose top has passed 40% of the window; above the first step, it's step 1
   if (st.ovScroll) removeEventListener('scroll', st.ovScroll); st.ovScroll = null;
-  const sb = [...m.querySelectorAll('.ov-steps [data-step]')];
+  const sb = [...document.querySelectorAll('.ov-steps [data-step], #side .side-steps [data-step]')];
   if (sb.length) {
     let raf = 0; const mark = () => { raf = 0; const line = innerHeight * .4; let cur = sb[0].dataset.step;
       for (const b of sb) { const t = $('#step-' + b.dataset.step); if (t && t.getBoundingClientRect().top <= line) cur = b.dataset.step; }
