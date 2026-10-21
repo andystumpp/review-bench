@@ -13,7 +13,7 @@ export const fill = (tpl, vars) => String(tpl).replace(/\{\{(\w+)\}\}/g, (m, k) 
 // words that only exist in code: never in what a visible row says (principles.md, "Whose words")
 export const CODE_WORDS = /\b(model calls?|models?|llm|guards?|handlers?|payloads?|null|callbacks?|async|await|cache[sd]?|pars(e|es|ed|ing)|fetch(es|ed|ing)?)\b/i;
 export const CODE_NAMES = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[45]0\d\b|`/;
-export const codeTalk = x => (String(x || '').match(CODE_WORDS) || String(x || '').match(CODE_NAMES) || [])[0];
+export const codeTalk = (x, api) => (String(x || '').match(CODE_WORDS) || (api ? null : String(x || '').match(CODE_NAMES)) || [])[0];
 
 // last run's tree of one journey, as the PREVIOUS TREE that trace.md describes
 export function prevTreeText(t) {
@@ -35,15 +35,19 @@ export function checkMap(map, has, at = 'map') {
     if (!f.tab) errs.push(`${at}: flow ${f.id} has no tab.`);
     else if (tabs.filter(x => x === norm(f.tab)).length > 1) errs.push(`${at}: flow ${f.id} has the tab "${f.tab}", which another journey uses too. Every tab names its own journey.`);
     for (const s of f.path || []) if (!comps.has(s[0])) errs.push(`${at}: flow ${f.id} walks through "${s[0]}", which is not a component id.`);
+    if (f.server && !f.api?.path) errs.push(`${at}: API journey ${f.id} has no api path. Give its method and path ("POST /incidents") or the job's name.`);
+    for (const a of f.apis || []) if (!(map.flows || []).some(x => x.id === a && x.server)) warns.push(`${at}: flow ${f.id} calls "${a}", which is not an API journey id.`);
   }
   return { errs, warns };
 }
 // needRead: the journey must list the files it relied on (the workflow needs that; the app knows what it sent)
 export function checkTrace(t, comps, has, at = 'journey', needRead = true) {
   const errs = [], warns = [], ds = decisions(t), seen = new Set();
+  // an API journey's caller speaks the API: its paths, input names and answer codes are allowed (principles.md 2)
+  const api = t?.screen?.kind === 'api';
   if (!ds.length) errs.push(`${at}: no decisions.`);
   if (!(t?.nodes || []).some(n => n.kind === 'section')) errs.push(`${at}: no sections.`);
-  for (const n of (t?.nodes || []).filter(n => n.kind === 'section')) { const w = codeTalk(n.q);
+  for (const n of (t?.nodes || []).filter(n => n.kind === 'section')) { const w = codeTalk(n.q, api);
     if (w) errs.push(`${at} section "${n.q}": "${w}" is a word from the code. Name the section after what the person does.`); }
   for (const n of ds) {
     const where = `${at} decision "${n.id || n.q}"`;
@@ -57,7 +61,7 @@ export function checkTrace(t, comps, has, at = 'journey', needRead = true) {
     // past the limit with some slack is an error; just past it is a warning
     if (words(n.q) > 6) (words(n.q) > 8 ? errs : warns).push(`${where}: question has ${words(n.q)} words (at most 6). Move the detail into "note".`);
     if (words(n.a) > 8) (words(n.a) > 11 ? errs : warns).push(`${where}: answer has ${words(n.a)} words (at most 8). Move the detail into "note".`);
-    if (n.seen === 'visible') for (const k of ['q', 'a', 'note', 'does', 'notice']) { const w = codeTalk(n[k]);
+    if (n.seen === 'visible') for (const k of ['q', 'a', 'note', 'does', 'notice']) { const w = codeTalk(n[k], api);
       if (w) errs.push(`${where}: "${w}" in ${k} is a word from the code. Say what the person sees instead, or mark the row "plumbing" if they never see it.`); }
     if (n.flag && !n.notice) warns.push(`${where}: flagged but has no "notice".`);
   }

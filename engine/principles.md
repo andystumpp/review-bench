@@ -13,7 +13,9 @@ follow these.
    used in the spec, README or the product's screens is the person's word, even
    when it is technical: a backend product's user says request, token, webhook.
    Words that exist only in the code are out of visible rows: guard, handler,
-   model call, commit, submit, cache, parse, payload, null, flag.
+   model call, commit, submit, cache, parse, payload, null, flag. On an API
+   journey the person is whoever calls the API, so the API's own words are
+   theirs: its paths, the names of its inputs and outputs, its answer codes.
 3. **Technical words live in technical rows.** Rows marked as plumbing, and the
    "Lives in" code section of the panel, may use developer words. The fold
    between visible and technical steps is also the line between the two
@@ -29,7 +31,8 @@ follow these.
    every tree, every finding. No synonyms ("the log" and "log list"), no
    function or variable names. A tree section that matches a part of the
    screen starts with that part's label: "Incident" on the screen →
-   "Incident: when it opens" in the tree.
+   "Incident: when it opens" in the tree. An API is drawn the same way, so its
+   tree sections start with "Takes:" and "Answers:".
 
 ## What a row says
 
