@@ -63,7 +63,8 @@ When a PREVIOUS TREE is given, it lists last run's decisions, one per line: `id 
 
 - `screen`: the main screen the user looks at during this journey, as the view code renders it, with realistic sample data. `kind` "phone", "web", or "none" (a backend request). `title`, optional `subtitle`, `sections` in order (`label`, optional `hint`), each with up to 6 `rows`: `glyph` (one lowercase word), `text`, `meta` (short trailing detail like "× 2"), `tone` ("accent", "warn", "dim" or ""), `nodes` (ids of the decisions that decide whether and how this row appears), optional `case`. Optional `banner {text, nodes}`, and `action` (the main button label or ""). At most 4 sections. A section with `"offscreen": true` holds things this screen hides from the user. For a server journey use kind "none" and only offscreen sections.
 - `cases`: 3 to 6 concrete examples that walk this tree, as a reviewer would test it, with specific sample data. Each: `id`, `label` (under 24 characters), `outcome` (under 30), `nodes` (every decision on its path, in order, taking one branch at each fork), `values` ({decisionId: what it evaluates to for this case, under 28 characters, with real numbers}), optional `measures` ({knobId: the case's number the knob is compared against}).
-- `knobs`: the 0 to 5 most important chosen constants (thresholds, timeouts, limits, retry counts). Each: `id`, `label` (2 or 3 words), `node`, `value`, `min`, `max`, `step`, `unit`, `text` (the exact substring of that decision's q or a that shows the value), and, only when a case has a measure for it, `op` (">=", ">", "<" or "<="), `pass` and optional `fail` (decision ids).
+- `knobs`: the 0 to 5 most important numbers the code picked on its own (thresholds, timeouts, limits, retry counts), shown to the reviewer as "Numbers picked in the code". Each: `id`, `label` (2 or 3 words), `node` (the decision it sets), `value`, `unit`, `text` (the exact substring of that decision's q or a that shows the value), and, only when a case has a measure for it, `op` (">=", ">", "<" or "<="), `pass` and optional `fail` (decision ids).
+- `calls`: every call this journey makes across a boundary (to a server, a database, an outside service, and back), in the order they happen. One entry per call, also when the same part is called again: three database reads are three calls. Each: `from` and `to` (component ids; for something the map has no component for, a short name like "Postgres"), `what` (what the call does, in the person's words, at most 6 words: "reads your open incidents"), `nodes` (ids of the decisions the caller makes with its answer, may be empty). Leave it `[]` when the journey never leaves one part.
 - `promises`: 2 to 4 claims from the spec this journey is supposed to keep, each with `status` "held", "partial" or "broken", short `evidence`, and `nodes`.
 - `read`: every file path you relied on for this journey.
 
@@ -74,7 +75,8 @@ Shape of the journey:
  "nodes":[{"kind":"section","q":""},{"kind":"decision","id":"","d":0,"q":"","a":"","note":"","noteKind":"","prov":"","briefRef":"","how":"","tags":"","comp":"","flag":false,"seen":"visible","why":"","brief":"","does":"","notice":"","change":"","file":"","lines":[1,2],"prompt":""}],
  "screen":{"kind":"phone","title":"","subtitle":"","banner":{"text":"","nodes":[]},"sections":[{"label":"","hint":"","offscreen":false,"rows":[{"glyph":"","text":"","meta":"","tone":"","nodes":[""],"case":""}]}],"action":""},
  "cases":[{"id":"","label":"","outcome":"","nodes":[""],"values":{},"measures":{}}],
- "knobs":[{"id":"","label":"","node":"","value":0,"min":0,"max":1,"step":0.1,"unit":"","text":"","op":">=","pass":"","fail":""}],
+ "knobs":[{"id":"","label":"","node":"","value":0,"unit":"","text":"","op":">=","pass":"","fail":""}],
+ "calls":[{"from":"","to":"","what":"","nodes":[""]}],
  "promises":[{"claim":"","status":"","evidence":"","nodes":[""]}],
  "read":[""]}
 ```
