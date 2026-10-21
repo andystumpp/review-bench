@@ -284,6 +284,7 @@ body.col-sheet .trow.sel { box-shadow:inset -3px 0 0 var(--violet); }
 .trow.cf, .nrow.cf { background:var(--violetBg); }
 .trow.off, .nrow.off { opacity:.45; }
 .fhead { margin:24px 0 20px; }
+.fhead .by { margin:6px 0 0; font-size:12px; color:var(--muted); }
 .fhead .eyebrow { display:flex; align-items:center; }
 .live.glow { box-shadow:0 0 0 4px color-mix(in srgb,var(--mint) 18%,transparent), 0 0 14px var(--mint); }
 .knobs { margin:0 0 20px; display:grid; gap:10px; }
@@ -1441,7 +1442,7 @@ function renderCases(f, where) {
 function renderFlow(f) {
   if (!f) return '';
   const p = st.proj, fi = flowIdx(f.id);
-  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1></div><div><p>${esc(f.lede || '')}</p>${f.nodes && st.files && sample && !p.demo ? `<p style="margin-top:12px"><button class="btn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button></p>` : ''}</div></section>`;
+  const head = `<section class="hero fhead"><div><div class="eyebrow"><span class="live glow" style="background:${FLOW_COLORS[fi % FLOW_COLORS.length]}"></span>${esc(p.app.name)}${p.app.build ? ' · build ' + esc(p.app.build) : ''} · ${esc(f.tab)}</div><h1>${esc(f.title)}</h1>${f.by ? `<p class="by">Traced with ${esc(f.by.model)} · ${esc(fmtWhen(f.by.at))}</p>` : ''}</div><div><p>${esc(f.lede || '')}</p>${f.nodes && st.files && sample && !p.demo ? `<p style="margin-top:12px"><button class="btn" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Re-trace ${esc(f.tab)}${f.cases ? '' : ' with cases'}</button></p>` : ''}</div></section>`;
   const arch = renderArch(f);
   if (!f.nodes) {
     const can = !!sample && !p.demo && st.files;
@@ -1974,6 +1975,8 @@ function promiseText() {
 }
 function briefText(cap) { let s = promiseText(); for (const b of st.briefs) { const add = `=== ${b.path}\n${b.text}\n\n`; if (s.length + add.length > cap) { s += add.slice(0, Math.max(0, cap - s.length)); break; } s += add; } return s || '(no spec, spec or README found)'; }
 const lastKey = label => 'rb.last.' + String(label || '').replace(/\W+/g, '-').toLowerCase();
+// who traced a journey and when: { model, at }, shown under its title
+const byOf = b => b && typeof b === 'object' && b.model ? { model: String(b.model).slice(0, 60), at: b.at || null } : null;
 function fmtWhen(at) { if (!at) return 'earlier'; if (typeof at === 'string' && !/^\d{4}-/.test(at)) return at; const d = new Date(at); return isNaN(d) ? 'earlier' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 
 // ---------- Claude prompts ----------
@@ -2204,7 +2207,7 @@ async function traceFlow(fid) {
     const r = sanitizeFlow(await askChecked(flowPrompt(f), t => checkTrace(t, comps, hasFile, 'journey', false)));
     f.read = read;
     const before = f.nodes ? f.nodes.map((n, i) => ({ id: n.id, sign: signOf(f.id, i) })) : [];
-    f.nodes = r.nodes; f.promises = r.promises; f.screen = r.screen; f.calls = r.calls; f.cases = r.cases; f.knobs = r.knobs; delete st.cases[f.id]; delete st.knobs[f.id]; if (r.lede) f.lede = r.lede; linkScreen(f);
+    f.nodes = r.nodes; f.promises = r.promises; f.screen = r.screen; f.calls = r.calls; f.cases = r.cases; f.knobs = r.knobs; f.by = { model: (sample && sample.lastModel) || AI, at: new Date().toISOString() }; delete st.cases[f.id]; delete st.knobs[f.id]; if (r.lede) f.lede = r.lede; linkScreen(f);
     compareWithPrev(f, before);
     setStatus(`Traced <b>${esc(f.title)}</b>: ${r.nodes.filter(n => n.kind === 'decision').length} decisions, ${r.nodes.filter(n => n.flag).length} flagged.`);
     persistProj();
@@ -2591,7 +2594,7 @@ function exportReport() {
     glossary: (p.glossary || []).filter(g => !cs.some(c => c.name === g.term)),
     flows: p.flows.map(f => ({ id: f.id, tab: f.tab, server: f.server, title: f.title, lede: f.lede, path: f.path, files: f.files })),
     promises: pr ? pr.items.map(t => ({ text: t, on: pr.on?.[t] || '', from: pr.from?.[t] || '' })) : [], rules: pr?.rules || [], conflicts: pr?.conflicts || [], promiseSource: pr?.source || 'inferred' };
-  const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, calls: f.calls, promises: f.promises, read: f.read || {}, diff: f.diff || null }]));
+  const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, calls: f.calls, promises: f.promises, by: f.by || null, read: f.read || {}, diff: f.diff || null }]));
   const files = st.files ? Object.fromEntries([...st.files].map(([k, t]) => [k, fhash(t)])) : {};
   return { format: 'review-bench-report', version: 1, label: p.label, key: p.key, at: new Date().toISOString(), commit: p.report?.commit || '', prevAt: null, files, map, traces, notes: [] };
 }
@@ -2604,7 +2607,7 @@ async function openReport(file) {
   for (const f of m.flows) {
     const t = r.traces?.[f.id]; if (!t) continue;
     let s; try { s = sanitizeFlow(t); } catch { continue; }
-    Object.assign(f, s); f.read = t.read || null; f.diff = t.diff || null;
+    Object.assign(f, s); f.read = t.read || null; f.diff = t.diff || null; f.by = byOf(t.by);
     const since = Object.fromEntries((t.nodes || []).filter(n => n.id && n.since).map(n => [n.id, n.since]));
     f.nodes.forEach(n => { if (n.id && since[n.id]) n.since = since[n.id]; });
     linkScreen(f);

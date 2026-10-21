@@ -100,6 +100,9 @@ function compare(t, old, at) {
   }
   t.diff = { at, gone: was.filter(x => !used.has(x.id)).map(x => ({ q: x.q, a: x.a })), kept: 0 };
 }
+// shown under each journey title: which AI and model traced it (RB_AGENT, RB_MODEL from the action)
+const tracedWith = () => { const a = process.env.RB_AGENT || 'claude', m = process.env.RB_MODEL || '';
+  return a === 'copilot' ? (m ? 'Copilot ' + m : 'Copilot (its default model)') : 'Claude ' + (m || 'sonnet'); };
 function build() {
   const pl = readJson(`${WORK}/plan.json`), prev = pl?.fresh ? null : readJson(PREV), files = codeFiles(), notes = [];
   // nothing was traced: last run's report stands; only the page around it is drawn again
@@ -112,6 +115,7 @@ function build() {
     if (fresh && decisions(fresh).length) {
       fresh.read = Object.fromEntries((fresh.read || []).filter(p => fs.existsSync(p)).map(p => [p, fhash(read(p))]));
       if (old) compare(fresh, old, prev.at); else decisions(fresh).forEach(n => { delete n.since; });
+      fresh.by = { model: tracedWith(), at: new Date().toISOString() };
       traces[f.id] = fresh;
     } else if (old) {
       // unchanged since last run (or today's trace failed): last run's tree, with nothing marked new

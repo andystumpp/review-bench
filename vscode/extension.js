@@ -68,7 +68,7 @@ function withHost(html, state) {
   addEventListener('message', e => { const m = e.data || {}, w = wait[m.id];
     if (m.type === 'files') files.ok(m); else if (m.type === 'files-error') files.no(m);
     else if (m.type === 'ai-text') w?.onText?.({ text: m.text });
-    else if (m.type === 'ai-done') { delete wait[m.id]; w?.ok(m.json); }
+    else if (m.type === 'ai-done') { delete wait[m.id]; window.RB_AI.lastModel = m.model; w?.ok(m.json); }
     else if (m.type === 'ai-error') { delete wait[m.id]; w?.no({ code: m.code, message: m.message }); } });
   vs.postMessage({ type: 'ready' });
 })();
@@ -87,7 +87,7 @@ async function onMessage(ctx, me, m) {
     const k = stateKey(root), all = ctx.workspaceState.get(k, {}); all[m.k] = m.v; await ctx.workspaceState.update(k, all);
   } else if (m.type === 'ai') {
     const cts = new vscode.CancellationTokenSource(); running.set(m.id, cts);
-    try { post({ type: 'ai-done', id: m.id, json: await askJson(m.prompt, cts.token, text => post({ type: 'ai-text', id: m.id, text })) }); }
+    try { const a = await askJson(m.prompt, cts.token, text => post({ type: 'ai-text', id: m.id, text })); post({ type: 'ai-done', id: m.id, json: a.json, model: a.model }); }
     catch (e) { post({ type: 'ai-error', id: m.id, code: e.code || 'error', message: String(e?.message || '') }); }
     finally { running.delete(m.id); cts.dispose(); }
   } else if (m.type === 'ai-stop') running.get(m.id)?.cancel();
@@ -132,7 +132,7 @@ async function askJson(prompt, token, onText) {
   }
   if (token.isCancellationRequested) throw fail('cancelled');
   onText(text);
-  return parseJson(text);
+  return { json: parseJson(text), model: m.name || m.family };
 }
 // the answer's JSON, also when the model wraps it in a code fence or a sentence
 function parseJson(text) {
