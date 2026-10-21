@@ -320,6 +320,22 @@ body.fmin .fhead > div { opacity:0; transform:translateY(-8px) scale(.97); }
 .sd-find { margin:10px 0 4px; } .sd-find input { width:100%; font:inherit; font-size:13px; padding:7px 10px; border:1px solid var(--line2); border-radius:8px; background:var(--surface); color:var(--ink); }
 .sd-reach { display:flex; align-items:center; gap:4px; } .sd-reach .sd-i { flex:1; }
 .sd-g { font-family:var(--mono); font-size:10.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:14px 8px 4px; }
+.sd-c.bad { color:var(--coral); background:color-mix(in srgb,var(--coral) 14%,transparent); } .sd-c.warnc { color:#8A6200; background:#FBF0CC; } .sd-c.ok { color:var(--mint); background:color-mix(in srgb,var(--mint) 14%,transparent); }
+/* code rules (preview): one checklist, a dot per rule, buckets from the instruction files */
+.rdot { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; background:var(--mint); }
+.s-unclear .rdot { background:#E0A100; } .s-broken .rdot { background:var(--coral); }
+.rsum { display:flex; flex-wrap:wrap; gap:8px 22px; margin:0 0 18px; font-size:14px; color:var(--muted); } .rsum > span { display:inline-flex; align-items:center; gap:8px; } .rsum b { color:var(--ink); }
+.rbucks { display:grid; gap:14px; }
+.crb .eyebrow { margin-bottom:4px; }
+.crule > summary, .cr-l { display:flex; align-items:center; gap:12px; padding:10px 4px; border-top:1px solid var(--line); cursor:pointer; list-style:none; }
+.crule > summary::-webkit-details-marker, .cr-lint > summary::-webkit-details-marker { display:none; }
+.crb > .eyebrow + .crule > summary { border-top:0; }
+.cr-t { flex:1; min-width:0; font-size:14.5px; } .s-broken .cr-t { font-weight:600; }
+.cr-from { flex:none; font-family:var(--mono); font-size:11px; color:var(--dim); max-width:30%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.cr-b { padding:0 4px 12px 26px; font-size:13.5px; color:var(--muted); } .cr-b p { margin:0 0 6px; }
+.cr-w { display:flex; flex-wrap:wrap; gap:6px; } .cr-w .cite { font-family:var(--mono); font-size:11.5px; padding:2px 8px; border-radius:6px; background:var(--surface2); border:1px solid var(--line); color:var(--ink); }
+.cr-lint > summary { cursor:pointer; list-style:none; } .cr-l { cursor:default; } .cr-l .cr-t { color:var(--muted); font-size:13.5px; }
+.cr-docs { font-size:12px; color:var(--dim); margin:14px 0 0; } .cr-docs code, .panel.empty code { font-size:11.5px; }
 /* API journeys: the entry point drawn like a screen, the overview's screens-to-APIs map, the APIs list in the top bar */
 .apiep { border:1px solid var(--line); border-radius:16px; background:var(--surface); padding:16px; display:grid; gap:12px; }
 .ap-h { display:flex; align-items:baseline; gap:8px; min-width:0; } .ap-h b { font-family:var(--mono); font-size:15px; overflow-wrap:anywhere; }
@@ -1022,11 +1038,12 @@ const DEMO = null;
 
 // ---------- state ----------
 // the Overview and search views: names no journey can have (journey ids are letters, digits, - and _)
-const OV = '@overview', USES = '@search';
+const OV = '@overview', USES = '@search', RULES = '@rules';
 const st = {
   proj: null,          // analysis: {key, app, places, components, flows, demo?}
   files: null,         // Map path -> text (only for analyzed uploads, in memory)
   briefs: [],          // [{path,text}]
+  ruleDocs: [],        // [{path,text}] coding instructions, for the code rules check
   view: OV,
   sel: null,           // {flow, idx}
   comp: null,
@@ -1124,7 +1141,8 @@ function sideHtml() {
     <form class="sd-find" data-find role="search"><input type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form>
     ${st.reach ? `<div class="sd-reach"><button type="button" class="sd-i" data-view="${USES}"${st.view === USES ? ' aria-current="page"' : ''}>✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></div>` : ''}
     ${user.length ? `<div class="sd-g">${hasApi ? 'Screens' : 'Journeys'}</div>${user.map(item).join('')}` : ''}
-    ${srv.length ? `<div class="sd-g">${hasApi ? 'APIs' : 'Server'}</div>${srv.map(item).join('')}` : ''}`;
+    ${srv.length ? `<div class="sd-g">${hasApi ? 'APIs' : 'Server'}</div>${srv.map(item).join('')}` : ''}
+    ${rulesShown() ? `<div class="sd-g">Checks</div><button type="button" class="sd-i" data-view="${RULES}"${st.view === RULES ? ' aria-current="page"' : ''}><span class="sd-t">Code rules<small>preview</small></span>${st.busyRules ? '<span class="spinner"></span>' : rulesBadge()}</button>` : ''}`;
 }
 $('#side').addEventListener('click', e => {
   const v = e.target.closest('[data-view]'); if (v && st.proj) { go(v.dataset.view); return; }
@@ -1142,7 +1160,7 @@ function navHtml(mini) {
   const p = st.proj, user = p.flows.filter(f => !f.server), srv = p.flows.filter(f => f.server);
   const b = f => { const j = journeyStats(f);
     return `<button role="tab" aria-selected="${st.view === f.id}" data-view="${esc(f.id)}" title="${esc(f.title)}${j.n ? ` · ${j.done} of ${j.n} reviewed` : ' · not read yet'}">${ring(j)}${esc(f.tab)}</button>`; };
-  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === OV}" data-view="${OV}">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === USES}" data-view="${USES}">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + apiTabs(srv, b) : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
+  return `<div class="tabs${mini ? ' mini' : ''}" role="tablist"><button role="tab" aria-selected="${st.view === OV}" data-view="${OV}">Overview</button><span class="div"></span><span class="tlab">Journeys</span>${user.map(b).join('')}${st.reach ? `<span class="div"></span><span class="utab"><button role="tab" aria-selected="${st.view === USES}" data-view="${USES}">✦ ${esc(st.reach.topic || 'search')} · ${st.reach.busy ? '…' : st.reach.rows.length}</button><button type="button" class="ux" data-rclear title="Close" aria-label="Close the search results">✕</button></span>` : ''}${srv.length ? '<span class="div"></span>' + apiTabs(srv, b) : ''}${rulesShown() ? `<span class="div"></span><button role="tab" aria-selected="${st.view === RULES}" data-view="${RULES}">Code rules</button>` : ''}<form class="tfind" data-find role="search"><input id="findIn" type="search" placeholder="Search decisions…" aria-label="Search all decision trees" value="${esc(st.reach?.find ? st.reach.q : '')}"></form></div>`;
 }
 function render() {
   const p = st.proj;
@@ -1157,9 +1175,9 @@ function render() {
   const unasked = ds.filter(x => x.n.prov === 'unasked').length;
   $('#barFill').style.width = ds.length ? (100 * signed / ds.length) + '%' : '0';
   $('#progText').innerHTML = `<b>${signed}</b> / ${ds.length} signed · <span class="am">${unasked} ?</span> not in spec`;
-  if (st.view === USES && !st.reach) st.view = OV;
+  if (st.view === USES && !st.reach || st.view === RULES && !rulesShown()) st.view = OV;
   const f = st.view === OV ? null : p.flows[flowIdx(st.view)];
-  $('#main').innerHTML = (st.view === USES ? navHtml() + renderUses() : f ? renderFlow(f) : navHtml() + renderMap()) +
+  $('#main').innerHTML = (st.view === USES ? navHtml() + renderUses() : st.view === RULES ? navHtml() + renderRules() : f ? renderFlow(f) : navHtml() + renderMap()) +
     `<p class="footnote">${p.demo
       ? 'Demo data is transcribed from the Review Bench v16 mockup of Restock. Test cases are scripted from that mockup. Source lines are not loaded in the demo. Sign-offs are kept in this browser.'
       : 'Map, flow trees and test cases are written by an AI reading your code, so treat them as a reviewer’s first read, not ground truth. Every decision links to the lines it cites; check them. Sign-offs are kept in this browser, per project.'}</p>`;
@@ -1936,6 +1954,7 @@ function bindMain() {
   const f = st.view === OV ? null : st.proj.flows[flowIdx(st.view)];
   m.querySelectorAll('[data-view]').forEach(b => b.onclick = e => { e.stopPropagation(); go(b.dataset.view); });
   m.querySelectorAll('select[data-apisel]').forEach(s => s.onchange = () => { if (s.value) go(s.value); });
+  m.querySelectorAll('[data-rcheck]').forEach(b => b.onclick = checkCodeRules);
   m.querySelectorAll('[data-goflow]').forEach(b => { const g = e => { e.stopPropagation(); go(b.dataset.goflow); }; b.onclick = g; b.onkeydown = e => { if (e.key === 'Enter') g(e); }; });
   m.querySelectorAll('.card[data-comp]').forEach(b => { b.onclick = () => openComp(b.dataset.comp); b.onkeydown = e => { if (e.key === 'Enter' && e.target === b) openComp(b.dataset.comp); }; });
   m.querySelectorAll('[data-edge]').forEach(b => b.onclick = e => { e.stopPropagation(); const [c, i] = b.dataset.edge.split(':'); openEdge(c, +i); });
@@ -2046,7 +2065,10 @@ const SKIP_DIR = /(^|\/)(node_modules|\.git|\.svn|build|dist|out|DerivedData|Pod
 const CODE_EXT = /\.(swift|m|mm|h|hpp|c|cc|cpp|kt|kts|java|js|jsx|mjs|cjs|ts|tsx|py|go|rb|rs|cs|php|scala|dart|vue|svelte|sql|ex|exs|lua|sh|graphql|proto|prisma|tf|html?|css|scss|sass|less|styl|astro|mdx|njk|liquid|hbs|handlebars|ejs|pug|erb|twig|jinja2?|razor|cshtml|xml|json|ya?ml|toml)$/i;
 // config and data files only count when small: routes, redirects and build settings, not data dumps
 const SMALL_EXT = /\.(json|ya?ml|toml|xml)$/i;
-const DOC_EXT = /(\.(md|markdown|txt|rst|mdc)|(^|\/)\.cursorrules)$/i;
+const DOC_EXT = /(\.(md|markdown|txt|rst|mdc)|(^|\/)\.(cursorrules|windsurfrules|clinerules))$/i;
+// coding instructions and guidelines: the files the code rules check reads
+const RULE_DOC = /(^|\/)(\.github\/copilot-instructions\.md|\.github\/instructions\/[^/]+\.md|agents\.md|claude\.md|gemini\.md|\.cursorrules|\.cursor\/rules\/[^/]+|\.windsurfrules|\.clinerules(\/[^/]+)?|contributing\.md)$|(^|\/)[^/]*(guideline|convention|coding[-_ ]?(standard|style|rule)|style[-_ ]?guide|code[-_ ]?style|best[-_ ]?practice|patterns)[^/]*\.(md|mdc|txt)$/i;
+const RULE_LOOK = 'Copilot instructions (.github/copilot-instructions.md, .github/instructions/), AGENTS.md, CLAUDE.md, GEMINI.md, Cursor, Windsurf and Cline rules, CONTRIBUTING.md, and files named like coding guidelines, conventions, style guide or patterns';
 const BRIEF_NAME = /(readme|spec|brief|prd|design|requirements|claude|agents|cursor|architecture|product|backlog|plan|roadmap)/i;
 // which kind of spec a doc is, best first: real specs beat agent rules beat the README
 const SPEC_KINDS = [['OpenSpec', /(^|\/)openspec\//i], ['Spec Kit', /(^|\/)(\.specify\/|specs\/[^/]+\/(spec|plan|tasks)\.md$)/i], ['PRD', /(prd|brief|requirements|product|spec)[^/]*\.(md|markdown|txt|rst)$/i],
@@ -2068,17 +2090,18 @@ async function ingest(entries, label, progress) {
   // entries: [{path, size, read: () => Promise<string>}]
   const keep = entries.filter(e => !SKIP_DIR.test(e.path) && !SKIP_FILE.test(e.path) && (CODE_EXT.test(e.path) || DOC_EXT.test(e.path)) && e.size < (SMALL_EXT.test(e.path) ? 60000 : 400000));
   if (!keep.length) throw new Error('No source files found. Pick the folder that holds your code (not a single file), or a .zip of it.');
-  const files = new Map(); let lines = 0; const briefs = [];
+  const files = new Map(); let lines = 0; const briefs = [], ruleDocs = [];
   const stripped = stripRoot(keep.map(e => e.path));
   for (let i = 0; i < keep.length; i++) {
     const text = await keep[i].read(); const p = stripped[i];
     if (progress && i % 40 === 0) progress(i);
-    if (DOC_EXT.test(p)) { if (BRIEF_NAME.test(p) && !/node_modules|changelog/i.test(p)) briefs.push({ path: p, text, kind: specKind(p) }); continue; }
+    if (DOC_EXT.test(p)) { if (RULE_DOC.test(p) && !/changelog/i.test(p)) ruleDocs.push({ path: p, text });
+      if (BRIEF_NAME.test(p) && !/node_modules|changelog/i.test(p)) briefs.push({ path: p, text, kind: specKind(p) }); continue; }
     files.set(p, text); lines += text.split('\n').length;
   }
   if (!files.size) throw new Error('Only docs found, no code files.');
   briefs.sort((a, b) => specRank(a.kind) - specRank(b.kind) || a.path.length - b.path.length);
-  return { files, briefs, label, stats: { files: files.size, lines, langs: langStats(files) } };
+  return { files, briefs, ruleDocs, label, stats: { files: files.size, lines, langs: langStats(files) } };
 }
 function langStats(files) {
   const m = {}; for (const [p, t] of files) { if (SMALL_EXT.test(p)) continue; const e = (p.match(/\.([a-z0-9]+)$/i) || [])[1] || '?'; m[e] = (m[e] || 0) + t.split('\n').length; }
@@ -2371,6 +2394,78 @@ async function traceAll() {
 }
 function maybeAutoTrace() { const f = st.proj.flows[flowIdx(st.view)]; if (f && !f.nodes && !st.busy && sample && st.files && !st.proj.demo && !promisesPending()) traceFlow(f.id); }
 
+
+// ---------- code rules (preview): the coding instructions as one checklist, checked against all the code in its own pass, started by hand ----------
+const rulesShown = () => !!st.proj && !st.proj.demo && (!!st.proj.codeRules || (!!st.files && !!sample));
+const rulesCount = c => { const n = { kept: 0, broken: 0, unclear: 0, style: 0 }; (c?.rules || []).forEach(r => n[r.kind === 'style' ? 'style' : r.status]++); return n; };
+function rulesBadge() { const c = st.proj.codeRules; if (!c) return ''; const n = rulesCount(c);
+  return n.broken ? `<b class="sd-c bad" title="${n.broken} broken">${n.broken}</b>` : n.unclear ? `<b class="sd-c warnc" title="${n.unclear} can’t tell">${n.unclear}</b>` : `<b class="sd-c ok" title="all kept">✓</b>`; }
+function cleanRules(c) {
+  if (!c || typeof c !== 'object' || !Array.isArray(c.rules)) return null;
+  const t = (x, k) => String(x ?? '').slice(0, k);
+  const rules = c.rules.filter(r => r && r.rule).slice(0, 80).map((r, i) => {
+    const kind = r.kind === 'style' ? 'style' : 'behaviour';
+    return { id: t(r.id || 'r' + (i + 1), 20), rule: t(r.rule, 160), bucket: t(r.bucket, 30) || 'Other', from: t(r.from, 200), kind,
+      status: kind === 'style' ? null : ['kept', 'broken', 'unclear'].includes(r.status) ? r.status : 'unclear', why: t(r.why, 300),
+      where: (Array.isArray(r.where) ? r.where : []).filter(w => w && w.file).slice(0, 12).map(w => ({ file: t(w.file, 300), lines: Array.isArray(w.lines) ? w.lines.slice(0, 2).map(Number).filter(Number.isFinite) : [] })) };
+  });
+  return { at: c.at || null, by: t(c.by || AI, 60), docs: (Array.isArray(c.docs) ? c.docs : []).map(d => t(d, 300)).slice(0, 30), rules };
+}
+function rulesPrompt() {
+  const tree = [...st.files.keys()].map(p => `${p} (${st.files.get(p).split('\n').length})`).join('\n').slice(0, 20000);
+  let docs = ''; for (const d of st.ruleDocs) { const add = `=== ${d.path}\n${d.text}\n\n`; if (docs.length + add.length > 40000) { docs += add.slice(0, Math.max(0, 40000 - docs.length)) + '\n… (cut)\n'; break; } docs += add; }
+  let total = 0; for (const t of st.files.values()) total += t.length;
+  const code = total <= 165000 ? [...st.files].map(([p, t]) => numbered(p, t, 60000)).join('\n') : condense(st.files, 165000);
+  return `${ENGINE.prompts.rules}
+
+Reply with only the JSON, nothing else.
+
+INSTRUCTION FILES
+${docs}
+FILE TREE (path, lines)
+${tree}
+
+CODE (line-numbered)
+${code}`;
+}
+async function checkCodeRules() {
+  if (st.busy || !sample || !st.files || !st.ruleDocs.length || st.proj.demo) return;
+  st.busy = true; st.busyRules = true; render();
+  setStatus(`<span class="spinner"></span>Checking the code rules (<span id="kb">0</span> KB written)…`);
+  try {
+    const r = await askChecked(rulesPrompt(), x => checkRules(x, hasFile));
+    const c = cleanRules({ rules: r?.rules, at: new Date().toISOString(), by: (sample && sample.lastModel) || AI, docs: st.ruleDocs.map(d => d.path) });
+    if (!c || !c.rules.length) throw { code: 'invalid_json' };
+    st.proj.codeRules = c; persistProj();
+    const n = rulesCount(c);
+    setStatus(`Checked ${c.rules.length} code rules: ${n.broken} broken, ${n.unclear} can’t tell, ${n.kept} kept${n.style ? `, ${n.style} left to your linter` : ''}.`);
+  } catch (e) {
+    setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to ' + AI + '. Try again.')}</span>`);
+  } finally { st.busy = false; st.busyRules = false; render(); }
+}
+function renderRules() {
+  const c = st.proj.codeRules, docs = st.ruleDocs || [], can = !!sample && !!st.files && !st.proj.demo && docs.length > 0;
+  const btn = (label, primary) => can ? `<button class="${primary ? 'btn primary' : 'linkbtn'}" type="button" data-rcheck ${st.busy ? 'disabled' : ''}>${label}</button>` : '';
+  const by = c ? `<p class="by">Checked with ${esc(c.by)} · ${esc(fmtWhen(c.at))}${can ? ' · ' + btn('Re-check rules') : ''}</p>` : '';
+  const head = `<section class="hero fhead"><div><div class="eyebrow">Checks · preview</div><h1>Code rules</h1><p class="lede">Your coding instructions as one checklist, checked against all the code. Green: the code follows the rule. Yellow: can’t tell from reading. Red: the code breaks it.</p>${by}</div></section>`;
+  if (st.busyRules) return head + `<div class="panel empty"><h3><span class="spinner"></span>Checking the code rules</h3><p>${AI} is reading ${docs.length} instruction file${docs.length === 1 ? '' : 's'} and the code. This takes about as long as the map.</p><div class="stream">${esc(st.streamText.slice(-600))}</div></div>`;
+  if (!c) {
+    if (st.files && !docs.length) return head + `<div class="panel empty"><h3>No coding instructions found</h3><p>Looked for ${esc(RULE_LOOK)}.</p></div>`;
+    if (!st.files) return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Open the code folder to check its coding instructions.</p></div>`;
+    return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Found ${docs.map(d => `<code>${esc(d.path)}</code>`).join(', ')}.</p><p>One ${AI} request reads them and all the code, about the size of the map.</p><p>${btn('Check code rules', true)}</p></div>`;
+  }
+  const n = rulesCount(c), beh = c.rules.filter(r => r.kind !== 'style'), style = c.rules.filter(r => r.kind === 'style');
+  const rank = { broken: 0, unclear: 1, kept: 2 }, base = x => String(x || '').split('/').pop();
+  const buckets = {}; beh.forEach(r => (buckets[r.bucket] = buckets[r.bucket] || []).push(r));
+  const worst = rs => Math.min(...rs.map(r => rank[r.status]));
+  const row = r => `<details class="crule s-${r.status}"${r.status === 'kept' ? '' : ' open'}><summary><span class="rdot" title="${r.status === 'kept' ? 'kept' : r.status === 'broken' ? 'broken' : 'can’t tell'}"></span><span class="cr-t">${esc(r.rule)}</span><span class="cr-from" title="${esc(r.from)}">${esc(base(r.from))}</span></summary>
+    <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => `<span class="cite">${esc(w.file)}${w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''}</span>`).join('')}</div>` : ''}</div></details>`;
+  const sum = `<div class="rsum"><span class="s-broken"><span class="rdot"></span><b>${n.broken}</b> broken</span><span class="s-unclear"><span class="rdot"></span><b>${n.unclear}</b> can’t tell</span><span class="s-kept"><span class="rdot"></span><b>${n.kept}</b> kept</span></div>`;
+  const list = Object.entries(buckets).sort((a, b) => worst(a[1]) - worst(b[1]) || b[1].length - a[1].length).map(([k, rs]) =>
+    `<section class="panel crb"><div class="eyebrow">${esc(k)} · ${rs.length}</div>${rs.sort((a, b) => rank[a.status] - rank[b.status]).map(row).join('')}</section>`).join('');
+  const lint = style.length ? `<details class="panel crb cr-lint"><summary><span class="eyebrow">Left to your linter · ${style.length}</span></summary>${style.map(r => `<div class="cr-l"><span class="cr-t">${esc(r.rule)}</span><span class="cr-from" title="${esc(r.from)}">${esc(base(r.from))}</span></div>`).join('')}</details>` : '';
+  return head + sum + `<div class="rbucks">${list}${lint}</div><p class="cr-docs">Read from ${c.docs.map(d => `<code>${esc(d)}</code>`).join(', ') || 'your instruction files'}. ${AI} read the code, nothing was run.</p>`;
+}
 // ---------- a conversation per decision: ask what it means, or say what it should do instead ----------
 const cite = c => `<span class="cite" title="${esc(c.what || '')}">${esc(c.file)}${c.lines ? ':' + esc(String(c.lines[0])) : ''}</span>`;
 // ---------- reach: a wide question lights up every decision it involves, across journeys ----------
@@ -2724,7 +2819,7 @@ function bindLanding() {
   on('resetRead', () => setPhase('empty', { read: null, err: null, errText: '' }));
   on('startMap', () => mapCode());
   on('forgetRun', () => { if (st.read) { forgetRun(st.read); setPhase('read'); } });
-  on('reuseMap', () => { st.files = st.read.files; st.briefs = st.read.briefs; openProject(); });
+  on('reuseMap', () => { st.files = st.read.files; st.briefs = st.read.briefs; st.ruleDocs = st.read.ruleDocs || []; openProject(); });
   on('stopMap', () => st.ctl?.abort());
   const fi = document.getElementById('folderIn'); if (fi) fi.onchange = e => {
     const fs = [...e.target.files]; e.target.value = ''; if (!fs.length) return;
@@ -2742,7 +2837,7 @@ function exportReport() {
     promises: pr ? pr.items.map(t => ({ text: t, on: pr.on?.[t] || '', from: pr.from?.[t] || '' })) : [], rules: pr?.rules || [], conflicts: pr?.conflicts || [], promiseSource: pr?.source || 'inferred' };
   const traces = Object.fromEntries(p.flows.filter(f => f.nodes).map(f => [f.id, { lede: f.lede, nodes: f.nodes, screen: f.screen, cases: f.cases, knobs: f.knobs, calls: f.calls, promises: f.promises, by: f.by || null, read: f.read || {}, diff: f.diff || null }]));
   const files = st.files ? Object.fromEntries([...st.files].map(([k, t]) => [k, fhash(t)])) : {};
-  return { format: 'review-bench-report', version: 1, label: p.label, key: p.key, at: new Date().toISOString(), commit: p.report?.commit || '', prevAt: null, files, map, traces, notes: [] };
+  return { format: 'review-bench-report', version: 1, label: p.label, key: p.key, at: new Date().toISOString(), commit: p.report?.commit || '', prevAt: null, files, map, traces, notes: [], codeRules: p.codeRules || null };
 }
 $('#saveBtn').onclick = () => { if (st.proj && window.RB_SAVE) window.RB_SAVE(exportReport()); };
 // a report.json written by the daily workflow (.loupe/engine in the repo): the map and every traced journey, no code
@@ -2758,8 +2853,8 @@ async function openReport(file) {
     f.nodes.forEach(n => { if (n.id && since[n.id]) n.since = since[n.id]; });
     linkScreen(f);
   }
-  st.files = null; st.briefs = [];
-  st.proj = { key: r.key || 'r-report', ...m, stats: { files: Object.keys(r.files || {}).length, lines: 0 }, label: r.label || m.app.name, at: r.at, prev: null, report: { at: r.at, commit: r.commit || '' } };
+  st.files = null; st.briefs = []; st.ruleDocs = [];
+  st.proj = { key: r.key || 'r-report', ...m, stats: { files: Object.keys(r.files || {}).length, lines: 0 }, label: r.label || m.app.name, at: r.at, prev: null, report: { at: r.at, commit: r.commit || '' }, codeRules: cleanRules(r.codeRules) };
   persistProj(); openProject();
   setStatus(`Showing the report from <b>${esc(fmtWhen(r.at))}</b>${r.commit ? `, commit ${esc(String(r.commit).slice(0, 7))}` : ''}${REPORT_ONLY ? '' : '. Open the folder too to ask about a decision or see its code'}.`);
 }
@@ -2781,7 +2876,7 @@ async function readCode(entries, label, kind) {
 }
 async function mapCode() {
   const r = st.read; if (!r || st.busy) return;
-  st.files = r.files; st.briefs = r.briefs;
+  st.files = r.files; st.briefs = r.briefs; st.ruleDocs = r.ruleDocs || [];
   await sampleReady;
   if (!sample) return setPhase('error', { err: 'claude', errText: 'Asking ' + AI + ' is not available in this view. Open this page in claude.ai.' });
   st.busy = true; setPhase('mapping');

@@ -20,6 +20,7 @@
 :root[data-look="plain"] .cstage { background:var(--surface2); }
 :root[data-look="plain"] .rb-foot { display:block; }
 .rb-foot { display:none; max-width:1280px; margin:40px auto 24px; padding-inline:24px; font-size:12px; color:var(--muted); }
+@media (min-width:1001px) { body.app .rb-foot { max-width:none; margin-left:var(--sideW); padding-inline:28px 32px; } }
 :root[data-look="plain"] .ov { --g:linear-gradient(var(--amber),var(--amber)); }
 :root[data-look="plain"] .hero h1 { font-size:30px; font-weight:600; letter-spacing:-.01em; }
 :root[data-look="plain"] .promises-p.todo, :root[data-look="plain"] .panel.recordp { background:var(--surface); }

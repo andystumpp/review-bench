@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const PROMPTS = ['map', 'trace', 'principles', 'search', 'whatif', 'ask', 'fix', 'changes'];
+const PROMPTS = ['map', 'trace', 'principles', 'search', 'whatif', 'ask', 'fix', 'changes', 'rules'];
 const SLOT = /\/\*@engine:[^*]*\*\/\n/;
 
 export function withEngine(html, dir = HERE) {
