@@ -39,11 +39,15 @@ The workflow needs `permissions: contents: write` to publish the branch.
 
 ## How it works
 
-The `engine` folder is what the AI follows: `run.md` (the task), `map.md` (the
-journeys and parts), `trace.md` (one journey's decision tree), and
-`principles.md` (how every row is worded). `assemble.mjs` does the parts that
-need no AI: what changed since the last report, checking what the AI wrote, and
-building the report. `viewer.html` is the report page.
+The `engine` folder is what the AI follows, wherever Review Bench runs:
+`map.md` (the journeys and parts), `trace.md` (one journey's decision tree),
+`principles.md` (how every row is worded), and the prompts behind search
+(`search.md`), What if (`whatif.md`), Ask (`ask.md`), the second try after a
+failed check (`fix.md`) and the prompt you copy for your AI (`changes.md`).
+`run.md` is the task for this action. `core.mjs` is the check every answer has
+to pass. `assemble.mjs` does the parts that need no AI: what changed since the
+last report, checking what the AI wrote, and building the report. `app.html` is
+the Review Bench page; `inline.mjs` builds the prompts and the check into it.
 
 ## Licence
 

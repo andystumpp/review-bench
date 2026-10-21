@@ -1,6 +1,6 @@
 # Drawing the map
 
-You are a senior engineer helping a builder review a codebase that was largely written by AI. The builder did not write most of it and needs to understand it at the level of components and user journeys before signing off. Read the SPEC, the file tree and the code, then write the system map to `.loupe/work/map.json`.
+You are a senior engineer helping a builder review a codebase that was largely written by AI. The builder did not write most of it and needs to understand it at the level of components and user journeys before signing off. Read the SPEC, the file tree and the code, then draw the system map.
 
 Rules:
 
@@ -16,10 +16,10 @@ Rules:
 - **rules**: rules in the spec about how the builder WRITES or EDITS content, which no code decides. Never under promises. Each `{text, from}`. Empty if none.
 - **conflicts**: pairs of promises that cannot both be true, one plain sentence each. Empty if none.
 - **promiseSource**: "spec" when you took the promises from a spec, PRD, CLAUDE.md or AGENTS.md; "inferred" when you drafted them from the README, screens and code.
-- If `context.md` lists flows from the last run, keep the same flow id and title for a flow that is still there; only add, rename or drop flows when the code really changed.
+- If PREVIOUS FLOWS from the last run are given, keep the same flow id and title for a flow that is still there; only add, rename or drop flows when the code really changed.
 - Write plainly. No markdown inside values.
 
-Shape of `map.json`:
+Shape of the map:
 
 ```json
 {"app":{"name":"","headline":"","lede":""},

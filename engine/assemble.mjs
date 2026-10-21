@@ -8,6 +8,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { execSync } from 'node:child_process';
+import { fhash, norm, decisions, prevTreeText, checkMap, checkTrace } from './core.mjs';
+import { withEngine } from './inline.mjs';
 
 const WORK = '.loupe/work', PREV = '.loupe/prev/report.json', OUT = '.loupe/report';
 const SKIP = /(^|\/)(\.loupe|\.github|node_modules|build[^/]*|DerivedData|dist)\/|\.(png|jpe?g|gif|webp|ico|icns|pdf|zip|ttf|otf|woff2?|mp4|mov|lock|pbxproj|xcuserstate|entitlements|plist|xcassets)$|(^|\/)(package-lock\.json|Contents\.json)$/i;
@@ -15,10 +17,6 @@ const SKIP = /(^|\/)(\.loupe|\.github|node_modules|build[^/]*|DerivedData|dist)\
 const read = p => fs.readFileSync(p, 'utf8');
 const readJson = p => { try { return JSON.parse(read(p)); } catch { return null; } };
 const write = (p, s) => { fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, s); };
-// same fingerprint as the prototype's, so a report and an opened folder agree on what changed
-const fhash = t => { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36) + '.' + t.length; };
-const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-const words = x => String(x || '').trim().split(/\s+/).filter(Boolean).length;
 const sh = c => { try { return execSync(c, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; } };
 
 function codeFiles() {
@@ -31,12 +29,6 @@ function codeFiles() {
   }
   return out;
 }
-const decisions = t => (t?.nodes || []).filter(n => n.kind === 'decision');
-// words that only exist in code: never in what a visible row says (principles.md, "Whose words")
-const CODE_WORDS = /\b(model calls?|models?|llm|guards?|handlers?|payloads?|null|callbacks?|async|await|cache[sd]?|pars(e|es|ed|ing)|fetch(es|ed|ing)?)\b/i;
-const CODE_NAMES = /\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b|\b[45]0\d\b|`/;
-const codeTalk = x => (String(x || '').match(CODE_WORDS) || String(x || '').match(CODE_NAMES) || [])[0];
-
 // ---------- plan ----------
 function plan() {
   // FRESH=1 (the workflow's "start over" switch) traces everything as if there were no report before
@@ -64,8 +56,7 @@ function plan() {
   write(`${WORK}/plan.json`, JSON.stringify({ remap, retrace, run, fresh }, null, 2) + '\n');
   for (const [id, t] of Object.entries(prev?.traces || {})) {
     const ds = decisions(t); if (!ds.length) continue;
-    write(`${WORK}/prev/${id}.txt`, ds.map(n => `${n.id} | ${n.d ?? ''} | ${n.q} | ${n.a} | ${n.file || ''}${n.lines ? ':' + n.lines.join('-') : ''}`).join('\n') +
-      `\nSections, in order: ${(t.nodes || []).filter(n => n.kind === 'section').map(n => n.q).join(' / ')}\n`);
+    write(`${WORK}/prev/${id}.txt`, prevTreeText(t));
   }
   write(`${WORK}/context.md`, `# Why this run\n\n${why.map(x => '- ' + x).join('\n') || '- Nothing changed.'}\n\n` +
     (prev?.map ? `# Map from the last run (${prev.at})\n\nUse these component ids and concept names. ${remap ? 'You are drawing a new map; keep flow ids and titles for flows that are still there.' : 'This map stands for this run.'}\n\n\`\`\`json\n${JSON.stringify(prev.map, null, 1)}\n\`\`\`\n` : ''));
@@ -80,46 +71,14 @@ function check() {
   const map = pl.remap ? readJson(`${WORK}/map.json`) : prev?.map;
   if (!map) errs.push(pl.remap ? `${WORK}/map.json is missing or is not valid JSON.` : 'No map from the last run.');
   else {
+    const has = p => fs.existsSync(p), add = r => { errs.push(...r.errs); warns.push(...r.warns); };
+    add(checkMap(map, has, pl.remap ? `${WORK}/map.json` : 'map'));
     const comps = new Set((map.components || []).map(c => c.id));
-    if (!comps.size) errs.push('map.json: no components.');
-    if (!(map.flows || []).length) errs.push('map.json: no flows.');
-    for (const c of map.components || []) for (const p of c.files || []) if (!fs.existsSync(p)) warns.push(`map.json: component ${c.id} lists ${p}, which does not exist.`);
-    const tabs = (map.flows || []).map(f => norm(f.tab));
-    for (const f of map.flows || []) {
-      if (!/^[\w-]+$/.test(f.id || '')) errs.push(`map.json: flow id "${f.id}" must be letters, digits, - or _.`);
-      if (!f.tab) errs.push(`map.json: flow ${f.id} has no tab.`);
-      else if (tabs.filter(x => x === norm(f.tab)).length > 1) errs.push(`map.json: flow ${f.id} has the tab "${f.tab}", which another journey uses too. Every tab names its own journey.`);
-      for (const s of f.path || []) if (!comps.has(s[0])) errs.push(`map.json: flow ${f.id} walks through "${s[0]}", which is not a component id.`);
-    }
     const ids = pl.retrace === 'all' ? (map.flows || []).map(f => f.id) : pl.retrace;
     for (const id of ids) {
       const p = `${WORK}/flows/${id}.json`, t = readJson(p);
       if (!t) { errs.push(`${p} is missing or is not valid JSON.`); continue; }
-      const ds = decisions(t), seen = new Set();
-      if (!ds.length) errs.push(`${p}: no decisions.`);
-      if (!(t.nodes || []).some(n => n.kind === 'section')) errs.push(`${p}: no sections.`);
-      for (const n of (t.nodes || []).filter(n => n.kind === 'section')) { const w = codeTalk(n.q);
-        if (w) errs.push(`${p} section "${n.q}": "${w}" is a word from the code. Name the section after what the person does.`); }
-      for (const n of ds) {
-        const at = `${p} decision "${n.id || n.q}"`;
-        if (!n.id) errs.push(`${at}: no id.`); else if (seen.has(n.id)) errs.push(`${at}: id used twice.`); seen.add(n.id);
-        if (!n.q) errs.push(`${at}: no question.`);
-        if (!Number.isInteger(n.d) || n.d < 0 || n.d > 4) errs.push(`${at}: d must be 0 to 4.`);
-        if (n.seen !== 'visible' && n.seen !== 'plumbing') errs.push(`${at}: seen must be "visible" or "plumbing".`);
-        if (!n.file || !fs.existsSync(n.file)) errs.push(`${at}: file "${n.file}" does not exist.`);
-        if (!Array.isArray(n.lines) || n.lines.length !== 2) errs.push(`${at}: lines must be [start, end].`);
-        if (n.comp && !comps.has(n.comp)) warns.push(`${at}: comp "${n.comp}" is not a component id.`);
-        // past the limit with some slack is an error; just past it is a warning
-        if (words(n.q) > 6) (words(n.q) > 8 ? errs : warns).push(`${at}: question has ${words(n.q)} words (at most 6). Move the detail into "note".`);
-        if (words(n.a) > 8) (words(n.a) > 11 ? errs : warns).push(`${at}: answer has ${words(n.a)} words (at most 8). Move the detail into "note".`);
-        if (n.seen === 'visible') for (const k of ['q', 'a', 'note', 'does', 'notice']) { const w = codeTalk(n[k]);
-          if (w) errs.push(`${at}: "${w}" in ${k} is a word from the code. Say what the person sees instead, or mark the row "plumbing" if they never see it.`); }
-        if (n.flag && !n.notice) warns.push(`${at}: flagged but has no "notice".`);
-      }
-      const plumb = ds.filter(n => n.seen === 'plumbing').length;
-      if (ds.length >= 8 && !plumb) warns.push(`${p}: no decision is marked "plumbing"; a typical tree has a third to a half.`);
-      if (!(t.read || []).length) errs.push(`${p}: "read" lists no files.`);
-      for (const r of t.read || []) if (!fs.existsSync(r)) errs.push(`${p}: read lists "${r}", which does not exist.`);
+      add(checkTrace(t, comps, has, p));
     }
   }
   for (const w of warns) console.log('warning: ' + w);
@@ -172,17 +131,17 @@ function publish(report) {
   write(`${OUT}/report.json`, JSON.stringify(report, null, 1) + '\n');
   write(`${OUT}/report.md`, markdown(report));
   const html = page(report);
-  if (html) write(`${OUT}/report.html`, html); else console.log('::warning::No usable viewer.html; report.html was not written.');
+  if (html) write(`${OUT}/report.html`, html); else console.log('::warning::No usable app.html; report.html was not written.');
 }
 
 // ---------- the page: Review Bench with this report built in ----------
 // LOOK=plain gives the quiet look for work: no logo or glow, system font, one accent, the name only in the footer.
 const BOOT = '// boot: where the viewer left off';
 function page(r) {
-  const dir = path.dirname(new URL(import.meta.url).pathname), viewer = path.join(dir, 'viewer.html');
+  const dir = path.dirname(new URL(import.meta.url).pathname), viewer = path.join(dir, 'app.html');
   if (!fs.existsSync(viewer)) return null;
-  let h = read(viewer);
-  if (!h.includes(BOOT)) return null;
+  let h = withEngine(read(viewer), dir);
+  if (!h || !h.includes(BOOT)) return null;
   const json = JSON.stringify(r).replace(/</g, '\\u003c');
   h = h.replace(BOOT, `const BAKED = ${json};\nif (BAKED) { openReport({ text: async () => JSON.stringify(BAKED) }); } else {\n${BOOT}`)
     .replace(/\} else render\(\);\n\}\)\(\);\n<\/script>\s*$/, '} else render();\n}\n})();\n</script>\n');

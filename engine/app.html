@@ -917,7 +917,7 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
 .trow.rch2, .nrow.rch2 { background:color-mix(in srgb,var(--violet) 5%,transparent); box-shadow:inset 3px 0 0 color-mix(in srgb,var(--violet) 40%,transparent); }
 .rb-imp { flex-basis:100%; margin:2px 0 0; font-size:14px; color:var(--ink); } .rb-via { color:var(--muted); }
 @media (max-width:640px) { .uj { grid-template-columns:1fr; } .uj-go { grid-column:1; grid-row:auto; } }
-#srcBtn, .askbox .btn { display:none !important; }
+[data-host="none"] #srcBtn, [data-host="none"] .askbox .btn { display:none !important; }
 </style>
 
 <header class="top">
@@ -940,6 +940,9 @@ aside.sheet .story .row { grid-template-columns:1fr; gap:2px; }
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+/*@engine: tools/build.mjs puts the engine here (its prompts as ENGINE.prompts, and core.mjs)*/
+</script>
 <script>
 (() => {
 'use strict';
@@ -977,8 +980,13 @@ const st = {
   phase: 'empty',      // landing: empty | reading | read | mapping | error
   read: null,
 };
-let sample = null;
-const sampleReady = Promise.resolve(null);
+// window.RB_HOST / RB_AI: a host page (the VS Code extension) names itself and brings an AI with sample.json's shape
+const HOST = window.RB_HOST || (window.claude && typeof window.claude.use === 'function' ? 'claude' : 'none');
+const REPORT_ONLY = HOST === 'none'; // a report page: no folder to open, no AI to ask
+document.documentElement.dataset.host = HOST;
+let sample = window.RB_AI || null;
+const sampleReady = sample ? Promise.resolve(sample) : HOST === 'claude'
+  ? window.claude.use('sample').then(s => (sample = s)).catch(() => null) : Promise.resolve(null);
 
 // ---------- theme ----------
 function applyTheme(t) { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); $('#themeBtn').textContent = t || 'system'; }
@@ -1216,7 +1224,11 @@ function decisionsPanel() {
     ${open.length ? `<div class="dec-l">${groups}</div>${open.length > 6 ? `<button type="button" class="btn ghost more" id="allDec">${st.allDec ? 'Show fewer' : `Show all ${open.length} decisions`}</button>` : ''}` : '<div class="pempty"><b>Nothing left to decide</b><span>Every one of these is kept or in your prompt.</span></div>'}
     ${askRows ? `<div class="askbox" id="askbox"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap"><span class="eyebrow">Changes to ask your AI for · ${Object.keys(asks).length}</span><button type="button" class="btn primary sm" id="copyAsk">Copy prompt</button></div>${askRows}<p class="hint" style="font-size:13px">Paste it into Claude Code, Cursor or ChatGPT. Then open the folder here again to see what changed.</p></div>` : ''}</section>`;
 }
-function askPrompt() { return Object.values(asksOf()).map(a => `- ${a.want} (instead of: ${a.text})`).join('\n'); }
+function askPrompt() {
+  const asks = asksOf(), p = st.proj;
+  const lines = Object.values(asks).map((a, i) => `${i + 1}. ${a.where ? a.where + ': ' : ''}Right now, ${a.text.replace(/\.$/, '')}. Change it so that: ${a.want}${a.plan ? `\n   Plan: ${a.plan}` : ''}${(a.touches || []).length ? '\n   Touch: ' + a.touches.map(c => `${c.file}${c.lines ? ' lines ' + c.lines.join('-') : ''} (${c.what})`).join('; ') : ''}`);
+  return fill(ENGINE.prompts.changes, { app: p.app.name, changes: lines.join('\n') });
+}
 const promisesPending = () => false; // the spec grows out of the review now; nothing is gated on it
 // ---------- journeys: each flow is a path a person takes through the product ----------
 function journeyStats(f) {
@@ -1258,7 +1270,7 @@ function renderMap() {
     <h1>${esc(p.app.headline || p.app.name)}</h1>${p.app.lede ? `<p>${esc(p.app.lede)}</p>` : ''}
     ${!p.demo && traced < p.flows.length ? (st.traceN ? `<p class="ov-trace"><span class="spinner"></span> Tracing journey ${st.traceN[0]} of ${st.traceN[1]}: <b>${esc(p.flows.find(f => f.id === st.busyFlow)?.title || '')}</b>. Decisions appear below as each one lands.</p>`
       : st.files ? `<p class="ov-trace"><button class="btn" id="traceAll" type="button" ${st.busy ? 'disabled' : ''}>Trace the ${p.flows.length - traced} remaining journey${p.flows.length - traced > 1 ? 's' : ''}</button></p>`
-      : `<p class="ov-trace warn">${p.flows.length - traced} journey${p.flows.length - traced > 1 ? 's are' : ' is'} not traced yet. The next run traces it.</p>`) : ''}</section>`;
+      : `<p class="ov-trace warn">${p.flows.length - traced} journey${p.flows.length - traced > 1 ? 's are' : ' is'}${REPORT_ONLY ? ' not traced yet. The next run traces it.</p>' : ' not traced yet, and the files are not kept between visits. <button class="linkbtn" type="button" id="srcAgain">Open the folder again</button> to continue.</p>'}`) : ''}</section>`;
   const byPlace = p.places.map((pl, pi) => ({ pl, pi, comps: p.components.filter(c => c.place === pl.id) })).filter(x => x.comps.length);
   const scrOk = projScreens().length;
   const places = `<details class="hood step" id="step-hood"${st.hoodOpen || !scrOk ? ' open' : ''}><summary><b>Under the hood</b><span>${p.components.length} code parts and where they run</span></summary><section class="places">` + byPlace.map(({ pl, pi, comps }) => `
@@ -1441,7 +1453,7 @@ function renderFlow(f) {
       : can && promisesPending() ? `<h3>Check the promises first</h3><p>Every decision in this flow is compared against what your app promises. Look over that list on the Overview, then come back.</p><p><button class="btn primary" type="button" data-view="map">Check the promises</button></p>`
       : st.traceN ? `<h3><span class="spinner"></span>Queued</h3><p>Flows are tracing one after another (${st.traceN[0]} of ${st.traceN[1]} right now). This one is next in line.</p>`
       : can ? `<h3>Not traced yet</h3><p>Claude reads the files on this path and writes every fork it finds, with the lines behind it.</p><p><button class="btn primary" type="button" data-trace="${esc(f.id)}" ${st.busy ? 'disabled' : ''}>Trace ${esc(f.tab)}</button></p>`
-      : `<h3>Not traced yet</h3><p>${st.files ? 'Asking Claude is not available in this view.' : 'The next run traces this journey.'}</p>`}</div>`;
+      : `<h3>Not traced yet</h3><p>${REPORT_ONLY ? 'The next run traces this journey.' : st.files ? 'Asking Claude is not available in this view.' : 'Open the code folder again to trace this flow; source files are not kept between visits.'}</p>`}</div>`;
   }
   const since = f.diff || (p.demo && f.nodes.some(n => sinceOf(n))) ? sinceBar([f], f.diff?.at || 'build v12', true) : '';
   return navHtml() + head + arch + since + renderKnobs(f) + renderGrid(f);
@@ -1660,14 +1672,20 @@ function openNode(fid, idx) {
     ${n.prompt ? `<div><div class="eyebrow" style="margin-bottom:6px;color:var(--violet)">✦ The prompt it sends</div><pre class="prompt">${esc(n.prompt)}</pre></div>` : ''}
     ${mini}
     ${code}
-    <div class="lives"><span class="eyebrow" style="display:block;margin-bottom:4px">Lives in</span>${n.file ? `<b>${esc(n.file)}</b>${n.lines ? ' · lines ' + esc(n.lines.join('–')) : ''}${!src ? ` · <span>${'the code itself is not part of the report'}</span>` : ''}<br>` : ''}${c ? `${esc(c.name)}: ${(c.files || []).map(esc).join(' · ')}` : ''}${String(n.tags || '').trim() ? `<br>${String(n.tags).split(/\s+/).filter(x => TAGS[x]).map(x => TAGS[x]).join(' · ')}` : ''}</div>`);
+    ${REPORT_ONLY ? '' : `<div class="conv"><div class="eyebrow" style="margin-bottom:6px">Ask about this, or say what it should do instead</div>${convHtml(fid, idx)}
+      <form class="ask" id="askForm"><input id="askIn" placeholder="${(st.proj.conv?.[nodeKey(fid, idx)] || []).length ? 'Follow up…' : 'What does this mean for a user? / Make it do … instead'}" autocomplete="off"><button class="btn" type="submit" id="askBtn">Send</button></form><div class="answer" id="answer" style="margin-top:10px"></div></div>`}
+    <div class="lives"><span class="eyebrow" style="display:block;margin-bottom:4px">Lives in</span>${n.file ? `<b>${esc(n.file)}</b>${n.lines ? ' · lines ' + esc(n.lines.join('–')) : ''}${!src ? ` · <span>${REPORT_ONLY ? 'the code itself is not part of the report' : st.proj.demo ? 'source is not part of the demo' : 'open the folder again to show these lines'}</span>` : ''}<br>` : ''}${c ? `${esc(c.name)}: ${(c.files || []).map(esc).join(' · ')}` : ''}${String(n.tags || '').trim() ? `<br>${String(n.tags).split(/\s+/).filter(x => TAGS[x]).map(x => TAGS[x]).join(' · ')}` : ''}</div>`);
   const B = SB;
   bindTerms(B);
   B.querySelectorAll('[data-sign]').forEach(b => b.onclick = () => { setSign(fid, idx, +b.dataset.sign); openNode(fid, idx); });
   B.querySelectorAll('[data-mini]').forEach(b => b.onclick = () => openNode(fid, +b.dataset.mini));
+  if (REPORT_ONLY) return;
+  $('#askForm').onsubmit = e => { e.preventDefault(); converse(f, n, idx); };
   B.querySelectorAll('[data-convask]').forEach(b => b.onclick = () => { const t = st.proj.conv[nodeKey(fid, idx)][+b.dataset.convask]; if (!t) return;
     asksOf()[nodeKey(fid, idx)] = { want: t.ask, text: dText(n), where: n.file ? n.file + (n.lines ? ' lines ' + n.lines.join('-') : '') : f.title, plan: t.summary, touches: t.touches };
     persistProj(); navigator.clipboard?.writeText(askPrompt()).catch(() => {}); b.textContent = 'Copied · in your prompt list on the Overview'; b.disabled = true; });
+  if (!sample) { $('#askBtn').disabled = true; $('#answer').textContent = 'Asking Claude is not available in this view.'; }
+  else if (!st.files && !st.proj.demo) { $('#askBtn').disabled = true; $('#answer').textContent = 'Open the folder again to ask; the files are not kept between visits.'; }
 }
 function openComp(cid) {
   const c = compById(cid); if (!c) return;
@@ -1886,7 +1904,22 @@ function stripRoot(paths) {
   const first = paths[0]?.split('/')[0];
   return first && paths.every(p => p.startsWith(first + '/')) ? paths.map(p => p.slice(first.length + 1)) : paths;
 }
-async function ingest() { throw new Error('not in a report'); }
+async function ingest(entries, label, progress) {
+  // entries: [{path, size, read: () => Promise<string>}]
+  const keep = entries.filter(e => !SKIP_DIR.test(e.path) && !SKIP_FILE.test(e.path) && (CODE_EXT.test(e.path) || DOC_EXT.test(e.path)) && e.size < (SMALL_EXT.test(e.path) ? 60000 : 400000));
+  if (!keep.length) throw new Error('No source files found. Pick the folder that holds your code (not a single file), or a .zip of it.');
+  const files = new Map(); let lines = 0; const briefs = [];
+  const stripped = stripRoot(keep.map(e => e.path));
+  for (let i = 0; i < keep.length; i++) {
+    const text = await keep[i].read(); const p = stripped[i];
+    if (progress && i % 40 === 0) progress(i);
+    if (DOC_EXT.test(p)) { if (BRIEF_NAME.test(p) && !/node_modules|changelog/i.test(p)) briefs.push({ path: p, text, kind: specKind(p) }); continue; }
+    files.set(p, text); lines += text.split('\n').length;
+  }
+  if (!files.size) throw new Error('Only docs found, no code files.');
+  briefs.sort((a, b) => specRank(a.kind) - specRank(b.kind) || a.path.length - b.path.length);
+  return { files, briefs, label, stats: { files: files.size, lines, langs: langStats(files) } };
+}
 function langStats(files) {
   const m = {}; for (const [p, t] of files) { if (SMALL_EXT.test(p)) continue; const e = (p.match(/\.([a-z0-9]+)$/i) || [])[1] || '?'; m[e] = (m[e] || 0) + t.split('\n').length; }
   const L = { swift:'Swift', ts:'TypeScript', tsx:'TypeScript', js:'JavaScript', jsx:'JavaScript', mjs:'JavaScript', cjs:'JavaScript', py:'Python', rb:'Ruby', go:'Go', rs:'Rust', kt:'Kotlin', kts:'Kotlin', java:'Java', m:'Objective-C', mm:'Objective-C', cs:'C#', php:'PHP', vue:'Vue', svelte:'Svelte', html:'HTML', htm:'HTML', css:'CSS', scss:'SCSS', sass:'Sass', less:'Less', astro:'Astro', mdx:'MDX', njk:'Nunjucks', liquid:'Liquid', hbs:'Handlebars', ejs:'EJS', pug:'Pug', erb:'ERB', c:'C', h:'C', cc:'C++', cpp:'C++', hpp:'C++', dart:'Dart', scala:'Scala', sql:'SQL', ex:'Elixir', exs:'Elixir', lua:'Lua', sh:'Shell' };
@@ -1896,7 +1929,19 @@ function langStats(files) {
 
 // condense: whole files when they fit, otherwise signatures + head
 const SIG = /^\s*(export\s|public\s|private\s|internal\s|open\s|final\s|static\s|async\s|@\w+|func\s|function\s|def\s|class\s|struct\s|enum\s|protocol\s|interface\s|type\s|extension\s|actor\s|fn\s|impl\s|module\s|router\.|app\.(get|post|put|delete|use)|const\s+\w+\s*=\s*(async\s*)?\(|let\s+\w+\s*:\s*|var\s+\w+\s*:\s*|case\s)/;
-function condense() { return ''; }
+function condense(files, budget) {
+  let total = 0; for (const t of files.values()) total += t.length;
+  const out = [];
+  if (total <= budget) { for (const [p, t] of files) out.push(`=== ${p} (${t.split('\n').length} lines)\n${t}`); return out.join('\n\n'); }
+  const per = Math.max(600, Math.floor(budget / files.size));
+  for (const [p, t] of files) {
+    const ls = t.split('\n'); let chunk = ls.slice(0, 25).map((l, i) => `${i + 1}| ${l}`).join('\n');
+    const sigs = ls.map((l, i) => [l, i]).filter(([l, i]) => i >= 25 && SIG.test(l)).map(([l, i]) => `${i + 1}| ${l.trimEnd()}`);
+    for (const s of sigs) { if (chunk.length + s.length > per) { chunk += '\n…'; break; } chunk += '\n' + s; }
+    out.push(`=== ${p} (${ls.length} lines; head + signatures)\n${chunk.slice(0, per + 200)}`);
+  }
+  return out.join('\n\n').slice(0, budget);
+}
 function numbered(p, t, cap) { const ls = t.split('\n'); let s = `=== ${p} (${ls.length} lines)\n`; for (let i = 0; i < ls.length; i++) { const l = `${i + 1}| ${ls[i]}\n`; if (s.length + l.length > cap) { s += `… (cut at line ${i})\n`; break; } s += l; } return s; }
 function promiseText() {
   // while mapping new code, only the promises of this same folder's last analysis count
@@ -1908,11 +1953,24 @@ const lastKey = label => 'rb.last.' + String(label || '').replace(/\W+/g, '-').t
 function fmtWhen(at) { if (!at) return 'earlier'; if (typeof at === 'string' && !/^\d{4}-/.test(at)) return at; const d = new Date(at); return isNaN(d) ? 'earlier' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
 
 // ---------- Claude prompts ----------
-function prevMapText() {
-  const pv = st.read && st.read.prev; if (!pv || !pv.flows?.length) return '';
-  return `\n- An older version of this code was analysed before, with these flows: ${pv.flows.map(f => `"${f.id}" (${f.title})`).join(', ')}. Reuse the same flow id for the same thing a user does, so the reviewer can compare. New flows get new ids.`;
+function mapPrompt() {
+  const tree = [...st.files.keys()].map(p => `${p} (${st.files.get(p).split('\n').length})`).join('\n').slice(0, 20000);
+  return `${ENGINE.prompts.map}
+
+Reply with only the JSON of the map, nothing else.
+
+PRINCIPLES (principles.md)
+${ENGINE.prompts.principles}
+
+${prevFlowsText()}SPEC
+${briefText(24000)}
+
+FILE TREE (path, lines)
+${tree}
+
+CODE
+${condense(st.files, 170000)}`;
 }
-function mapPrompt() { return ''; }
 function conceptText() {
   const cs = st.proj.concepts || []; if (!cs.length) return '';
   return `CONCEPTS: call these things by exactly these names everywhere (questions, answers, notes, screen section labels), never by another name:
@@ -1927,13 +1985,11 @@ function prevFlow(fid) {
 }
 function prevFlowsText() {
   const fl = st.read?.prev?.flows || []; if (!fl.length) return '';
-  return `PREVIOUS FLOWS: you mapped this folder before. Keep the same flow id and title for a flow that is still there; only add, rename or drop flows when the code really changed.
+  return `PREVIOUS FLOWS (id | title)
 ${fl.map(f => `${f.id} | ${f.title}`).join('\n')}
 
 `;
 }
-// fingerprint of a file's text, so the next run can tell which files changed
-function fhash(t) { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36) + '.' + t.length; }
 function flowFiles(f) { return [...new Set([...(f.files || []), ...(f.path || []).flatMap(s => compById(s[0])?.files || [])])].filter(p => st.files.has(p)); }
 // last run's tree for this flow, untouched, when none of the files it was traced from changed
 function reuseUnchanged(f) {
@@ -1952,15 +2008,38 @@ function reuseUnchanged(f) {
 function prevFlowText(f) {
   // re-tracing in place: the tree on screen is the one to keep; otherwise the last run of this folder
   const own = (f.nodes || []).filter(n => n.kind === 'decision');
-  const pv = own.length ? { nodes: own, sections: f.nodes.filter(n => n.kind === 'section').map(n => n.q) } : prevFlow(f.id);
+  const pv = own.length ? f : prevFlow(f.id);
   if (!pv || !pv.nodes?.length) return '';
-  return `PREVIOUS TREE: this flow was traced before${own.length ? '' : ' on an older version of this code'}. Update that tree, don't write a new one. One decision per line, id | depth | question | answer | file:lines:
-${pv.nodes.map(n => `${n.id} | ${n.d ?? ''} | ${n.q} | ${n.a} | ${n.file || ''}${n.lines ? ':' + n.lines.join('-') : ''}`).join('\n').slice(0, 14000)}
-${pv.sections?.length ? `Sections, in order: ${pv.sections.join(' / ')}\n` : ''}For every decision whose code still does the same thing, copy its id, question and answer exactly as written above and keep it in the same order and section; only fix file and line numbers. When its behaviour changed, keep the id, write the new answer, and fill "change" with what it was before, short ("was 0.75", "used to retry 3 times"). Leave "change" empty when nothing changed. Decisions that are new get new ids. Leave out decisions that no longer exist. Keep the case ids and knob ids you would have used before when the same case or knob still applies.
-
+  // a snapshot keeps decisions and section names apart; the PREVIOUS TREE wants them as one tree
+  const t = own.length ? pv : { nodes: [...(pv.sections || []).map(q => ({ kind: 'section', q })), ...pv.nodes.map(n => ({ kind: 'decision', ...n }))] };
+  return `PREVIOUS TREE (${own.length ? 'the tree on screen now' : 'traced on an older version of this code'})
+${prevTreeText(t).slice(0, 14000)}
 `;
 }
-function flowPrompt(f) { return ''; }
+function flowPrompt(f) {
+  const comps = st.proj.components.map(c => `${c.id}: ${c.name} (${c.role}) files: ${(c.files || []).join(', ')}`).join('\n');
+  let code = ''; const cap = 175000;
+  const order = flowFiles(f);
+  for (const p of order) { if (code.length > cap - 2000) break; code += numbered(p, st.files.get(p), Math.min(60000, cap - code.length)) + '\n'; }
+  return `${ENGINE.prompts.trace}
+
+Reply with only the JSON of the journey, nothing else. Leave "read" empty: the code below is all you are given.
+
+PRINCIPLES (principles.md)
+${ENGINE.prompts.principles}
+
+JOURNEY: ${f.title}. ${f.lede || ''}
+PATH: ${(f.path || []).map(s => s.join(': ')).join(' → ')}
+
+${conceptText()}${prevFlowText(f)}COMPONENTS
+${comps}
+
+SPEC
+${briefText(20000)}
+
+CODE (line-numbered)
+${code}`;
+}
 
 // ---------- running Claude ----------
 const ERR = {
@@ -1975,8 +2054,24 @@ const ERR = {
 let toastT = null;
 function setStatus(html, sticky) { $('#status').innerHTML = html; $('#toast').hidden = !html; clearTimeout(toastT); if (html && !sticky && !/spinner|class="err"/.test(html)) toastT = setTimeout(() => { $('#toast').hidden = true; }, 6000); }
 $('#toastX').onclick = () => { $('#toast').hidden = true; };
-async function ask(prompt) { throw new Error('not in a report'); }
+async function ask(prompt) {
+  st.ctl = new AbortController(); $('#stopBtn').hidden = false; st.streamText = '';
+  try {
+    return await sample.json(prompt, { signal: st.ctl.signal, modelTier: 'default', onText: ({ text }) => {
+      st.streamText = text; const s = document.querySelector('.stream'); if (s) s.textContent = text.slice(-(st.src ? 600 : 400));
+      const k = document.getElementById('kb'); if (k) k.textContent = (text.length / 1000).toFixed(1);
+    } });
+  } finally { $('#stopBtn').hidden = true; st.ctl = null; }
+}
 $('#stopBtn').onclick = () => st.ctl?.abort();
+// the same check the daily report runs (core.mjs); what it rejects goes back to the AI once, with the reasons
+async function askChecked(prompt, check) {
+  const r = await ask(prompt), first = check(r);
+  if (!first.errs.length) return r;
+  const again = await ask(`${prompt}\n\nYOUR ANSWER\n${JSON.stringify(r)}\n\n${fill(ENGINE.prompts.fix, { errors: first.errs.slice(0, 40).map(e => '- ' + e).join('\n') })}`).catch(e => { if (e?.code === 'cancelled') throw e; return null; });
+  return again && check(again).errs.length < first.errs.length ? again : r;
+}
+const hasFile = p => !!st.files?.has(p);
 
 function cleanHome(h) {
   if (!h || typeof h !== 'object') return null;
@@ -2052,7 +2147,6 @@ function snapshot() {
   store.set(lastKey(p.label), { key: p.key, at: p.at || new Date().toISOString(), flows, promises: p.promises?.confirmed ? p.promises : (p.prev?.promises || null), whatif: p.whatif || (p.prev?.whatif && !p.whatifDone ? p.prev.whatif : null) });
 }
 
-const norm = x => String(x || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 function compareWithPrev(f, before = []) {
   const pv = prevFlow(f.id); f.diff = null;
   for (let i = 0; i < Math.max(f.nodes.length, before.length); i++) delete st.review[nodeKey(f.id, i)];
@@ -2075,7 +2169,24 @@ function compareWithPrev(f, before = []) {
   f.diff = { at: st.proj.prev.at, gone: pv.nodes.filter(x => !used.has(x.id)).map(x => ({ q: x.q, a: x.a })), kept };
   saveReview();
 }
-async function traceFlow(fid) {}
+async function traceFlow(fid) {
+  const f = st.proj.flows[flowIdx(fid)]; if (!f || st.busy || !sample || !st.files) return;
+  st.busy = true; st.busyFlow = fid; render();
+  setStatus(`<span class="spinner"></span>Tracing <b>${esc(f.title)}</b> (<span id="kb">0</span> KB written)…`);
+  try {
+    const read = Object.fromEntries(flowFiles(f).map(p => [p, fhash(st.files.get(p))]));
+    const comps = new Set(st.proj.components.map(c => c.id));
+    const r = sanitizeFlow(await askChecked(flowPrompt(f), t => checkTrace(t, comps, hasFile, 'journey', false)));
+    f.read = read;
+    const before = f.nodes ? f.nodes.map((n, i) => ({ id: n.id, sign: signOf(f.id, i) })) : [];
+    f.nodes = r.nodes; f.promises = r.promises; f.screen = r.screen; f.cases = r.cases; f.knobs = r.knobs; delete st.cases[f.id]; delete st.knobs[f.id]; if (r.lede) f.lede = r.lede; linkScreen(f);
+    compareWithPrev(f, before);
+    setStatus(`Traced <b>${esc(f.title)}</b>: ${r.nodes.filter(n => n.kind === 'decision').length} decisions, ${r.nodes.filter(n => n.flag).length} flagged.`);
+    persistProj();
+  } catch (e) {
+    setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to Claude. Try again.')}</span>`);
+  } finally { st.busy = false; st.busyFlow = null; render(); }
+}
 async function traceAll() {
   if (!sample || !st.files || st.proj.demo) return;
   let same = 0; for (const f of st.proj.flows) if (!f.nodes && reuseUnchanged(f)) same++;
@@ -2127,8 +2238,17 @@ function reachCls(fid, id) { return st.reach?.use?.[fid + '#' + id]?.kind === 'v
 async function startFind(q) {
   q = String(q || '').trim().slice(0, 60); if (!q || !st.proj) return;
   const ts = findTerms(q), topic = ts.length === 1 ? ts[0] : q;
-  const use = wordHits(q), r = { topic, q, find: true, rows: Object.keys(use), use, jn: {}, busy: false };
+  const use = wordHits(q), r = { topic, q, find: true, rows: Object.keys(use), use, jn: {}, busy: !!sample };
   st.reach = r; closeSheet(); st.view = 'uses'; st.sel = null; render(); window.scrollTo({ top: 0, behavior: 'smooth' });
+  if (!sample) return;
+  const flows = st.proj.flows.filter(f => f.nodes);
+  try {
+    const out = await sample.json(fill(ENGINE.prompts.search, { q, journeys: flows.map(f => `${f.id} = ${f.title}`).join('; '), decisions: decisionIndex(), found: r.rows.join(', ') || 'none' }), { modelTier: 'default' });
+    const ok = new Set(flows.flatMap(f => f.nodes.filter(n => n.id).map(n => f.id + '#' + n.id))), fids = new Set(flows.map(f => f.id));
+    (Array.isArray(out?.rows) ? out.rows : []).forEach(x => { const id = String(x?.id || ''); if (ok.has(id) && !use[id]) { use[id] = { kind: x.how === 'via' ? 'via' : 'rel', why: String(x.why || '').slice(0, 90) }; r.rows.push(id); } });
+    (Array.isArray(out?.journeys) ? out.journeys : []).forEach(j => { const id = String(j?.id || ''); if (fids.has(id)) r.jn[id] = { touched: j.touched !== false, impact: String(j.impact || '').slice(0, 200), via: String(j.via || '').slice(0, 30) }; });
+  } catch (e) { r.failed = true; }
+  r.busy = false; if (st.reach === r) { if (st.view === 'uses') render(); else if (st.sel) openNode(st.sel.flow, st.sel.idx); else render(); }
 }
 document.addEventListener('submit', e => {
   if (e.target.matches('[data-find]')) { e.preventDefault(); startFind(e.target.querySelector('input').value); return; }
@@ -2136,7 +2256,23 @@ document.addEventListener('submit', e => {
   if (e.target.matches('[data-wiform]')) { e.preventDefault(); const v = e.target.querySelector('input').value.trim(); if (st.reach?.wi) { st.reach.wi.over[e.target.dataset.wiform] = v ? { text: v } : null; render(); } }
 });
 // ---------- what if: Claude redraws the affected journeys as they would look after a change; nothing in the code is touched ----------
-async function startWhatIf(want) {}
+async function startWhatIf(want) {
+  want = String(want || '').trim().slice(0, 200); const r = st.reach; if (!want || !r || !st.proj || !sample) return;
+  const touched = st.proj.flows.filter(f => f.nodes && r.rows.some(x => x.startsWith(f.id + '#')));
+  const wi = { want, busy: true, by: {}, over: {} }; r.wi = wi; st.view = 'uses'; closeSheet(); st.sel = null; render();
+  requestAnimationFrame(() => document.getElementById('wi')?.scrollIntoView({ block: 'start', behavior: 'smooth' }));
+  try {
+    const trees = touched.map(f => `JOURNEY ${f.id} = ${f.title}\n` + f.nodes.map(n => n.kind === 'section' ? `  [${n.q}]` : `  ${'  '.repeat(n.d | 0)}${n.id}: ${n.q} → ${n.a}${n.note ? ' (' + n.note + ')' : ''}${r.rows.includes(f.id + '#' + n.id) ? '   ← uses ' + r.topic : ''}`).join('\n')).join('\n\n');
+    const out = await sample.json(fill(ENGINE.prompts.whatif, { topic: r.topic, want, trees }), { modelTier: 'default' });
+    const str = x => String(x ?? '').slice(0, 120);
+    (Array.isArray(out?.journeys) ? out.journeys : []).forEach(j => { const f = touched.find(f => f.id === String(j?.id || '')); if (!f) return;
+      const ids = new Set(f.nodes.map(n => n.id).filter(Boolean));
+      const rows = (Array.isArray(j.rows) ? j.rows : []).filter(x => x && ids.has(String(x.id)) && ['changes', 'goes'].includes(x.fate)).map(x => ({ id: String(x.id), fate: x.fate, a: str(x.a), why: str(x.why) }));
+      const nw = (Array.isArray(j.new) ? j.new : []).filter(x => x && x.q).slice(0, 8).map((x, i) => ({ id: 'new' + i, fate: 'new', after: ids.has(String(x.after)) ? String(x.after) : '', q: str(x.q), a: str(x.a), why: str(x.why) }));
+      if (rows.length || nw.length) wi.by[f.id] = { rows, nw }; });
+  } catch (e) { wi.failed = true; }
+  wi.busy = false; if (st.reach === r && st.view === 'uses') render();
+}
 const wiKey = (fid, id) => fid + '#' + id;
 // the preview: every affected journey, today's row beside what it would become; untouched stretches fold into one line
 function renderWhatIf(r) {
@@ -2225,7 +2361,9 @@ function renderUses() {
     <div class="uj-list">${hit.map(line).join('')}${rest.length && !r.busy ? `<div class="uj-rest">Not touched: ${rest.map(f => esc(f.tab)).join(', ')}</div>` : ''}</div>
     ${hit.length && !r.busy && sample ? whatIfBox(r) : ''}${r.wi ? renderWhatIf(r) : ''}`;
 }
-function whatIfBox() { return ''; }
+function whatIfBox(r, sm) {
+  return `<form class="wi-f${sm ? ' sm' : ''}" data-whatif><span>What if I…</span><input id="wiIn" placeholder="${sm ? 'e.g. replace it with an edge between entries' : `e.g. replace ${esc(r.topic)} with an edge between entries, or: remove it`}" value="${esc(r.wi?.want || '')}" aria-label="What would you change"><button type="submit" class="btn primary${sm ? ' sm' : ''}">${r.wi ? 'Preview again →' : 'Preview →'}</button></form>`;
+}
 function convHtml(fid, idx) {
   const turns = st.proj.conv?.[nodeKey(fid, idx)] || []; if (!turns.length) return '';
   return `<div class="turns">${turns.map((t, i) => `<div class="turn you">${esc(t.ask)}</div>` + (t.kind === 'change'
@@ -2238,7 +2376,26 @@ function convFiles(f, n, extra) {
   let code = '', cap = 120000; for (const p of order) { if (code.length > cap - 2000) break; code += numbered(p, st.files.get(p), Math.min(50000, cap - code.length)) + '\n'; }
   return code;
 }
-async function converse(f, n, idx) {}
+async function converse(f, n, idx) {
+  const q = $('#askIn').value.trim(); if (!q || !sample) return;
+  const key = nodeKey(f.id, idx), turns = (st.proj.conv || (st.proj.conv = {}))[key] || (st.proj.conv[key] = []);
+  const out = $('#answer'); out.innerHTML = '<span class="spinner"></span> Reading the code…'; $('#askBtn').disabled = true; $('#askIn').value = '';
+  const tree = st.files ? [...st.files.keys()].join('\n').slice(0, 8000) : '';
+  const run = extra => ask(fill(ENGINE.prompts.ask, { app: st.proj.app.name, flow: f.title, q: n.q, a: n.a, note: n.note || '',
+    where: `${n.file || 'unknown'}${n.lines ? ' lines ' + n.lines.join('-') : ''}`,
+    conversation: turns.length ? 'CONVERSATION SO FAR:\n' + turns.map(t => `Builder: ${t.ask}\nYou: ${t.kind === 'change' ? t.summary : t.text}`).join('\n') + '\n' : '',
+    says: q, decisions: decisionIndex(), files: tree, code: convFiles(f, n, extra) }));
+  try {
+    let r = await run([]);
+    const need = (r?.need || []).map(String).filter(p => st.files?.has(p)).slice(0, 4);
+    if (need.length) r = await run(need);
+    const t = r?.kind === 'change'
+      ? { kind: 'change', ask: q, summary: String(r.summary || ''), touches: (r.touches || []).filter(c => c && c.file).map(c => ({ file: String(c.file), lines: Array.isArray(c.lines) ? c.lines.map(x => x | 0) : null, what: String(c.what || '') })), sideEffects: String(r.sideEffects || ''), diff: String(r.diff || '').slice(0, 20000) }
+      : { kind: 'answer', ask: q, text: String(r?.text || ''), cites: (r?.cites || []).filter(c => c && c.file).map(c => ({ file: String(c.file), lines: Array.isArray(c.lines) ? c.lines.map(x => x | 0) : null, what: String(c.what || '') })) };
+    const rc = cleanReach(r?.reach); if (rc) { t.reach = rc; st.reach = rc; }
+    turns.push(t); persistProj(); openNode(f.id, idx);
+  } catch (e) { out.textContent = e?.code === 'cancelled' ? 'Stopped.' : (ERR[e?.code] || 'Something went wrong. Try again.'); $('#askBtn').disabled = false; }
+}
 
 // ---------- landing: read → map ----------
 const LAND_ERR = {
@@ -2249,7 +2406,58 @@ const LAND_ERR = {
   badzip: ['That zip could not be opened', 'Try zipping the folder again, or open the folder itself.'],
   claude: ['Claude could not draw the map', ''],
 };
-function renderLanding() { return '<section class="land"><div><h1 style="font-size:28px">No report in this page</h1><p class="lede">This page shows a Review Bench report. Download report.html again from your report branch or run.</p></div></section>'; }
+function renderLanding() {
+  if (REPORT_ONLY) return '<section class="land"><div><h1 style="font-size:28px">No report in this page</h1><p class="lede">This page shows a Review Bench report. Download report.html again from your report branch or run.</p></div></section>';
+  const ph = st.phase, r = st.read;
+  let drop = '';
+  if (ph === 'reading') drop = `<div class="center"><span class="t"><span class="spinner"></span>Reading ${esc(st.readLabel || '')}</span><span class="small"><span id="readCount">${(st.readCount || 0).toLocaleString()}</span> files so far</span></div>`;
+  else if (ph === 'read' && r) {
+    const same = st.proj && !st.proj.demo && st.proj.key === r.key;
+    const rows = [['files', r.stats.files.toLocaleString() + ' source files', ''], ['lines', r.stats.lines.toLocaleString(), ''], ['languages', r.stats.langs || 'unknown', ''],
+      ['spec', r.briefs.some(b => isSpec(b.kind)) ? specSummary(r.briefs) : (r.briefs.length ? specSummary(r.briefs) + ' · no spec, ' : 'none found · ') + 'your spec grows out of what you keep', '']];
+    const last = !same && store.get(lastKey(r.label), null);
+    if (last && last.flows?.length) rows.push(['last time', `${fmtWhen(last.at)} · ${last.flows.length} flow${last.flows.length > 1 ? 's' : ''} traced · changes since then will be marked`, 'var(--mint)']);
+    drop = `<div style="display:grid;gap:18px"><div style="display:grid;gap:4px"><span class="eyebrow" style="color:var(--mint)">${esc(r.kind)} · read</span><span class="big">${esc(r.label)}</span></div>
+      <div class="rows">${rows.map(([k, v, c]) => `<div><span>${k}</span><span${c ? ` style="color:${c}"` : ''}>${esc(v)}</span></div>`).join('')}</div>
+      <div class="acts">${same ? `<button class="btn primary" type="button" id="reuseMap">Open ${esc(r.label)}</button><button class="linkbtn" type="button" id="startMap">map it again</button>` : `<button class="btn primary" type="button" id="startMap">Map ${esc(r.label)}</button>`}<button class="linkbtn" type="button" id="resetRead">pick something else</button>${hasHist(r) ? '<button class="linkbtn" type="button" id="forgetRun" title="Forget the last run of this folder: its map, traces, sign-offs and kept spec. The next map starts from nothing.">start fresh</button>' : ''}</div>
+      ${same ? '<span class="small">You mapped this code before. Opening it keeps your map, traces and sign-offs, and lets you trace the flows that are left.</span>' : ''}</div>`;
+  } else if (ph === 'mapping' && r) {
+    const steps = [['✓', `Read ${r.stats.files.toLocaleString()} files`, '', 'var(--mint)'], ['◌', 'Drawing the map', ' · components, where each runs, the contracts between them', 'var(--amber)'], ['·', 'Then trace each user flow', ' · one at a time, from the map', 'var(--muted)']];
+    drop = `<div style="display:grid;gap:18px"><div style="display:grid;gap:4px"><span class="eyebrow" style="color:var(--amber)">Mapping</span><span class="big">${esc(r.label)}</span></div>
+      <div class="steps">${steps.map(([m, t, sub, c]) => `<div style="color:${c}"><span style="font-weight:700">${m}</span><span>${t}<span style="color:var(--muted)">${sub}</span></span></div>`).join('')}</div>
+      <div class="stream" style="margin:0;max-width:none">${esc(st.streamText.slice(-400))}</div>
+      <div class="acts"><button class="btn" type="button" id="stopMap">Stop</button><span class="small">Usually 30 to 90 seconds</span></div></div>`;
+  } else if (ph === 'error') {
+    const e = LAND_ERR[st.err] || LAND_ERR.empty;
+    drop = `<div class="center"><span class="t" style="color:var(--coral)">${esc(e[0])}</span><span style="font-size:14px;color:var(--muted);max-width:38ch">${esc(st.errText || e[1])}</span><button class="btn" type="button" id="resetRead">Try another folder</button></div>`;
+  } else drop = `<div class="center"><div style="display:grid;gap:6px"><span class="t" id="dropTitle">Drop a code folder or a .zip</span><span class="small" style="font-size:12px">or pick one</span></div>
+      <div class="acts" style="justify-content:center"><label class="btn primary">Open code folder<input type="file" id="folderIn" webkitdirectory directory multiple></label><label class="btn">Open a .zip<input type="file" id="zipIn" accept=".zip,application/zip"></label></div>
+      <span class="small">Files stay in this browser. Only the text sent to Claude leaves it.</span></div>`;
+  const prev = store.get('rb.proj', null);
+  // once mapping starts, the card becomes the centre of the page and everything else steps back
+  const focus = ph === 'mapping', enter = focus && !st.landFocus; st.landFocus = focus;
+  return `<div class="land${focus ? ' focus' + (enter ? ' enter' : ' settled') : ''}" id="land"><section class="land-top"><canvas class="land-tree" id="landTree" aria-hidden="true"></canvas><div class="land-copy"><p class="eyebrow" style="margin:0"><i></i>Review Bench · ${prev && prev.components ? 'last opened: ' + esc(prev.label || prev.app?.name || '') : 'nothing opened yet'}</p>
+      <h1>Ship your product <em>without reviewing code</em></h1>
+      <p class="lede">Your AI writes the code. Review Bench shows every decision it made, in plain words, so nothing ships you didn't mean.</p>
+      <div class="land-cta"><button class="btn primary" type="button" id="heroOpen">Open your code</button><button class="btn" type="button" data-demo>Try a sample</button></div>
+      <p class="land-pick"><label class="linkbtn">open a .zip<input type="file" id="zipIn" accept=".zip,application/zip" hidden></label>, <label class="linkbtn">open a report<input type="file" id="reportIn" accept=".json,application/json" hidden></label> or drop a folder anywhere on this page<input type="file" id="folderIn" webkitdirectory directory multiple hidden></p>
+      <p class="land-safe"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span><b>Your code stays in your browser.</b> Nothing is uploaded or stored on a server. Only the text Claude needs to read is sent to Claude.</span></p></div>
+      ${ph === 'empty' ? `<div class="lv"><div class="lv-h"><span class="dots"><i></i><i></i><i></i></span>Checkout<small>7 decisions · <b>2 to check</b></small></div><div class="lv-rows"><div class="lv-r q" data-d="0"><span>Tap “Pay”</span></div><div class="lv-r q" data-d="1"><span>Card accepted?</span></div><div class="lv-r " data-d="2"><span>Yes: shows “Order confirmed”</span><i class="tg ok">✓ kept</i></div><div class="lv-r bad" data-d="2"><span>No: <em style="font-style:normal">also</em> shows “Order confirmed”</span><i class="tg bad">looks wrong</i></div><div class="lv-r odd" data-d="1"><span>Retries the payment 3 times</span><i class="tg odd">odd, confirm?</i></div><div class="lv-r " data-d="1"><span>Free shipping above $50</span><i class="tg ok">✓ kept</i></div><div class="lv-r " data-d="1"><span>Keeps the cart for 30 days</span><i class="tg ok">✓ kept</i></div></div></div>` : `<div class="drop-wrap"><div class="drop ${ph === 'error' ? 'bad' : ''}" id="drop">${drop}</div></div>`}</section>
+
+    <section><h2 class="land-h">AI writes fast.<br><span class="g">It also decides for you.</span></h2><p class="land-sub">Hundreds of small calls you never made. Now you can see them.</p>
+      <div class="land-vs">
+        <div><p class="lv-cap"><span>What you'd have to read</span><span>2,140 lines</span></p><div class="lv"><div class="lv-files"><span>signup.ts</span><span>auth/session.ts</span><span>email/send.ts</span><span>api/users.ts</span><span>+14 files</span></div><div class="lv-code"><i style="width:62%;margin-left:0%"></i><i style="width:48%;margin-left:6%"></i><i style="width:80%;margin-left:12%"></i><i style="width:35%;margin-left:18%"></i><i style="width:70%;margin-left:0%"></i><i style="width:55%;margin-left:6%"></i><i style="width:90%;margin-left:12%"></i><i style="width:40%;margin-left:18%"></i><i style="width:66%;margin-left:0%"></i><i style="width:28%;margin-left:6%"></i><i style="width:74%;margin-left:12%"></i><i style="width:50%;margin-left:18%"></i><i style="width:84%;margin-left:0%"></i><i style="width:38%;margin-left:6%"></i><i style="width:58%;margin-left:12%"></i></div></div></div>
+        <div class="arrow" aria-hidden="true">→</div>
+        <div><p class="lv-cap"><span>What Review Bench shows</span><span>4 decisions</span></p><div class="lv"><div class="lv-h">Sign up<small><b>2 to check</b></small></div><div class="lv-rows"><div class="lv-r bad" data-d="0"><span>Sends the welcome email before the address is checked</span><i class="tg bad">looks wrong</i></div><div class="lv-r odd" data-d="0"><span>Accepts any password with 6 characters</span><i class="tg odd">odd, confirm?</i></div><div class="lv-r " data-d="0"><span>Free trial lasts 14 days</span><i class="tg ok">✓ kept</i></div><div class="lv-r " data-d="0"><span>Remembers you for 30 days</span><i class="tg ok">✓ kept</i></div></div></div></div>
+      </div></section>
+
+    <section><h2 class="land-h">How Review Bench <span class="g">fixes it</span></h2><p class="land-sub">You review what your code decides, not how it's written.</p>
+      <div class="land-tiles">
+        <div class="lv land-tile"><div class="lt-vis"><div class="lt-rows"><div>Card declined: “Order confirmed”<i class="tg bad">looks wrong</i></div><div>Retries payment 3 times<i class="tg odd">odd</i></div><div>Free shipping above $50<i class="tg ok">✓</i></div></div></div><b>01</b><strong>Understand your code through its decisions</strong><p>Every flow shown as the choices it makes, in plain words.</p></div>
+        <div class="lv land-tile"><div class="lt-vis"><div class="lt-layers"><div class="l"><span class="c-v">Screen</span><span class="c-a">Logic</span><span class="c-m">Backend</span></div><span style="color:var(--amber);font-weight:800">↓</span><div class="one"><i class="c-v" style="background:var(--violet)"></i><i style="background:var(--amber)"></i><i style="background:var(--mint)"></i>Tap Pay, charge card, save order</div></div></div><b>02</b><strong>All layers, one view</strong><p>Screen, logic and backend folded into one shallow tree.</p></div>
+        <div class="lv land-tile"><div class="lt-vis"><div class="lt-struct"><div class="lt-grid" style="grid-template-columns:1fr"><i></i></div><span style="color:var(--muted);font-family:var(--mono);font-size:11px">or</span><div class="lt-grid" style="grid-template-columns:repeat(4,1fr)"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div><span class="lt-same">same decisions, same view</span></div></div><b>03</b><strong>Review behaviour, not structure</strong><p>However the code is organised, you check what it does.</p></div>
+      </div></section></div>`;
+}
 function setPhase(ph, extra = {}) {
   // going into mapping, the card glides from its spot in the hero to the centre (measure, re-render, play the difference back)
   const d0 = ph === 'mapping' && st.phase !== 'mapping' && $('#drop'), r0 = d0 && d0.getBoundingClientRect(), y0 = scrollY;
@@ -2265,7 +2473,59 @@ function setPhase(ph, extra = {}) {
 // Two evenly spaced columns (the third would sit behind the card) each build a tree row by row, trace a few paths down it (rows light up like a case being walked),
 // then fade and build a new one. Staggered so something is always moving.
 let LT = null;
-function landTree() {}
+function landTree() {
+  if (LT) return;
+  const R = Math.random, now = () => performance.now(), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const ROW = 26, IND = 18, STEP = 120, WALK = 260, FADE = 900;
+  const gen = max => { // rows {d, kids:[row idx]} in tracer order
+    const rows = [];
+    const add = (d, budget) => { const i = rows.length; rows.push({ d, kids: [], fl: -1e9 }); if (d >= 3) return i;
+      const k = d === 0 ? 2 : R() < .45 ? 0 : 2; for (let c = 0; c < k && rows.length < max - 1; c++) rows[i].kids.push(add(d + 1)); return i; };
+    while (rows.length < max - 2) add(0);
+    rows.forEach((r, i) => { r.last = true; for (let j = i + 1; j < rows.length; j++) { if (rows[j].d < r.d) break; if (rows[j].d === r.d) { r.last = false; break; } } r.w = .35 + R() * .5; r.w2 = .2 + R() * .3; });
+    return rows;
+  };
+  const cols = [0, 1, 2].map(k => ({ k, t0: now() - (still ? 1e9 : 0) + k * 1700, rows: null, walks: [] }));
+  let col = null, cvs = null;
+  const frame = () => {
+    const c = document.getElementById('landTree');
+    if (!c) { LT = null; return; }
+    if (c !== cvs) { cvs = c; const cs = getComputedStyle(c); col = ['--muted', '--violet', '--amber', '--coral'].map(v => cs.getPropertyValue(v).trim()); }
+    const dpr = Math.min(2, devicePixelRatio || 1), W = c.clientWidth, H = c.clientHeight;
+    if (c.width !== Math.round(W * dpr) || c.height !== Math.round(H * dpr)) { c.width = Math.round(W * dpr); c.height = Math.round(H * dpr); }
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, W, H); g.lineCap = 'round';
+    const t = now(), n = 2, cw = W / (W < 700 ? 2 : 3), max = Math.max(6, Math.floor((H - 40) / ROW));
+    cols.slice(0, n).forEach(C => {
+      if (!C.rows || C.rows.length > max + 2) { C.rows = gen(max); C.walks = []; }
+      const rows = C.rows, built = rows.length * STEP, life = built + 3 * (WALK * 6 + 500) + 1200, e = t - C.t0;
+      if (!still && e > life + FADE) { C.t0 = t; C.rows = gen(max); C.walks = []; return; }
+      const fade = still ? 1 : Math.max(0, 1 - Math.max(0, e - life) / FADE);
+      // walks: start at a top-level row, step to a random child until a leaf
+      const wi = Math.floor((e - built) / (WALK * 6 + 500));
+      if (!still && e > built && wi < 3 && !C.walks[wi]) { const tops = rows.map((r, i) => r.d === 0 ? i : -1).filter(i => i >= 0); let i = tops[(R() * tops.length) | 0]; const path = [i]; while (rows[i].kids.length) { i = rows[i].kids[(R() * rows[i].kids.length) | 0]; path.push(i); } C.walks[wi] = { path, t0: t, hue: 1 + wi % 3 }; }
+      const on = new Map(); C.walks.forEach(w => { if (!w) return; const k = Math.floor((t - w.t0) / WALK); w.path.forEach((ri, j) => { if (j <= k) { on.set(ri, w.hue); if (j === k && rows[ri].fk !== w) { rows[ri].fl = t; rows[ri].fc = w.hue; rows[ri].fk = w; } } }); });
+      const x0 = C.k * cw + cw * .12, y0 = (H - rows.length * ROW) / 2, lastAt = [];
+      rows.forEach((r, i) => {
+        const a = (still ? 1 : Math.min(1, Math.max(0, (e - i * STEP) / 260))) * fade; lastAt[r.d] = r.last; if (a <= 0) return;
+        const y = y0 + i * ROW + ROW / 2, hue = on.get(i), f = Math.max(0, 1 - (t - r.fl) / 900);
+        if (hue) { g.globalAlpha = .06 * a; g.fillStyle = col[hue]; g.fillRect(x0 - 6, y - ROW / 2 + 2, cw * .72, ROW - 4); }
+        g.globalAlpha = .38 * a; g.strokeStyle = col[0]; g.lineWidth = 1;
+        for (let k = 0; k < r.d; k++) if (!lastAt[k]) { const x = x0 + k * IND + 4; g.beginPath(); g.moveTo(x, y - ROW / 2); g.lineTo(x, y + ROW / 2); g.stroke(); }
+        const bx = x0 + r.d * IND + 4; g.beginPath(); g.moveTo(bx, y - ROW / 2); g.lineTo(bx, r.last ? y : y + ROW / 2); g.moveTo(bx, y); g.lineTo(bx + IND - 6, y); g.stroke();
+        const dx = bx + IND, lit = hue || f > .05, cc = col[hue || r.fc || 1];
+        if (f > 0) { g.globalAlpha = .22 * f * a; g.fillStyle = cc; g.beginPath(); g.arc(dx, y, 4 + 7 * f, 0, 7); g.fill(); }
+        g.globalAlpha = (lit ? .85 : .45) * a; g.fillStyle = lit ? cc : col[0]; g.beginPath(); g.arc(dx, y, 3, 0, 7); g.fill();
+        const lw = Math.max(30, (cw * .62 - r.d * IND)), grow = still ? 1 : Math.min(1, Math.max(0, (e - i * STEP - 80) / 320));
+        g.globalAlpha = (lit ? .55 : .26) * a; g.lineWidth = 5; g.strokeStyle = lit ? cc : col[0];
+        g.beginPath(); g.moveTo(dx + 10, y); g.lineTo(dx + 10 + lw * r.w * .62 * grow, y); g.stroke();
+        g.globalAlpha = .16 * a; g.strokeStyle = col[0]; g.beginPath(); g.moveTo(dx + 16 + lw * r.w * .62, y); g.lineTo(dx + 16 + lw * r.w * .62 + lw * r.w2 * .5 * grow, y); g.stroke(); g.lineWidth = 1;
+      });
+    });
+    g.globalAlpha = 1;
+    if (!still) requestAnimationFrame(frame); else LT = null;
+  };
+  LT = 1; requestAnimationFrame(frame);
+}
 // "start fresh": forget everything this browser kept for a folder of this name
 function hasHist(r) { const last = store.get(lastKey(r.label), null), pj = store.get('rb.proj', null); return !!(last || (pj && !pj.demo && pj.label === r.label)); }
 function forgetRun(r) {
@@ -2276,7 +2536,28 @@ function forgetRun(r) {
   if (st.proj && !st.proj.demo && st.proj.label === r.label) st.proj = null;
   r.prev = null; setStatus(`Forgot the last run of <b>${esc(r.label)}</b>. The next map starts fresh.`);
 }
-function bindLanding() {}
+function bindLanding() {
+  if (REPORT_ONLY) return;
+  document.querySelectorAll('[data-demo]').forEach(b => b.onclick = () => loadDemo());
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.onclick = fn; };
+  on('openDemo', () => { loadDemo(); });
+  const openCode = () => { const fi = document.getElementById('folderIn'); if (fi) fi.click(); else document.getElementById('drop')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); };
+  on('heroOpen', openCode);
+  const land = document.getElementById('land');
+  landTree();
+  if (land?.classList.contains('enter')) setTimeout(() => land.classList.replace('enter', 'settled'), 800);
+  on('resetRead', () => setPhase('empty', { read: null, err: null, errText: '' }));
+  on('startMap', () => mapCode());
+  on('forgetRun', () => { if (st.read) { forgetRun(st.read); setPhase('read'); } });
+  on('reuseMap', () => { st.files = st.read.files; st.briefs = st.read.briefs; openProject(); });
+  on('stopMap', () => st.ctl?.abort());
+  const fi = document.getElementById('folderIn'); if (fi) fi.onchange = e => {
+    const fs = [...e.target.files]; e.target.value = ''; if (!fs.length) return;
+    readCode(fs.map(f => ({ path: f.webkitRelativePath || f.name, size: f.size, read: () => f.text() })), (fs[0].webkitRelativePath || fs[0].name).split('/')[0] || 'folder', 'folder');
+  };
+  const zi = document.getElementById('zipIn'); if (zi) zi.onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) readZip(f); };
+  const ri = document.getElementById('reportIn'); if (ri) ri.onchange = e => { const f = e.target.files[0]; e.target.value = ''; if (f) openReport(f); };
+}
 // a report.json written by the daily workflow (.loupe/engine in the repo): the map and every traced journey, no code
 async function openReport(file) {
   let r; try { r = JSON.parse(await file.text()); } catch { r = null; }
@@ -2293,11 +2574,42 @@ async function openReport(file) {
   st.files = null; st.briefs = [];
   st.proj = { key: r.key || 'r-report', ...m, stats: { files: Object.keys(r.files || {}).length, lines: 0 }, label: r.label || m.app.name, at: r.at, prev: null, report: { at: r.at, commit: r.commit || '' } };
   persistProj(); openProject();
-  setStatus(`Showing the report from <b>${esc(fmtWhen(r.at))}</b>${r.commit ? `, commit ${esc(String(r.commit).slice(0, 7))}` : ''}.`);
+  setStatus(`Showing the report from <b>${esc(fmtWhen(r.at))}</b>${r.commit ? `, commit ${esc(String(r.commit).slice(0, 7))}` : ''}${REPORT_ONLY ? '' : '. Open the folder too to ask about a decision or see its code'}.`);
 }
-async function readZip() {}
-async function readCode() {}
-async function mapCode() {}
+async function readZip(f) {
+  if (!window.JSZip) return setPhase('error', { err: 'zip' });
+  try {
+    const zip = await JSZip.loadAsync(f);
+    readCode(Object.values(zip.files).filter(z => !z.dir && !/__MACOSX\//.test(z.name)).map(z => ({ path: z.name, size: z._data?.uncompressedSize || 0, read: () => z.async('string') })), f.name.replace(/\.zip$/i, ''), 'zip');
+  } catch { setPhase('error', { err: 'badzip' }); }
+}
+async function readCode(entries, label, kind) {
+  if (st.busy) return;
+  setPhase('reading', { readLabel: label, readCount: 0, err: null });
+  try {
+    const ing = await ingest(entries, label, n => { st.readCount = n; const c = document.getElementById('readCount'); if (c) c.textContent = n.toLocaleString(); });
+    const key = projKey(label, ing.stats), last = store.get(lastKey(label), null);
+    setPhase('read', { read: { ...ing, kind, key, prev: last && last.flows?.length ? last : null } });
+  } catch (e) { setPhase('error', { err: 'empty', errText: /Only docs/.test(e.message || '') ? 'Only docs were found, no code files. Pick the folder that holds the code.' : '' }); }
+}
+async function mapCode() {
+  const r = st.read; if (!r || st.busy) return;
+  st.files = r.files; st.briefs = r.briefs;
+  await sampleReady;
+  if (!sample) return setPhase('error', { err: 'claude', errText: 'Asking Claude is not available in this view. Open this page in claude.ai.' });
+  st.busy = true; setPhase('mapping');
+  try {
+    const m = sanitizeMap(await askChecked(mapPrompt(), m => checkMap(m, hasFile)));
+    st.proj = { key: r.key, ...m, stats: r.stats, label: r.label, at: new Date().toISOString(), prev: r.prev || null };
+    // promises you already checked for this folder carry over; edit them on the map if the app's goals moved
+    // (unless a spec turned up since, which beats promises guessed from the code)
+    if (r.prev?.promises?.confirmed && !(r.prev.promises.source === 'inferred' && r.briefs.some(b => isSpec(b.kind)) && st.proj.promises)) st.proj.promises = { ...r.prev.promises };
+    st.busy = false; persistProj(); openProject();
+  } catch (e) {
+    st.busy = false;
+    if (e?.code === 'cancelled') setPhase('read'); else setPhase('error', { err: 'claude', errText: ERR[e?.code] || 'Something went wrong talking to Claude. Try again.' });
+  }
+}
 function openProject() {
   st.src = 'proj'; store.set('rb.src', 'proj');
   st.review = store.get('rb.review.' + st.proj.key, {});
@@ -2329,7 +2641,7 @@ document.addEventListener('drop', async e => {
 });
 
 const DEMO_PLUMBING = new Set(['persist()', 'Stored answer still good?', 'Otherwise, ask the backend', 'Remote reachable?', 'Ask the backend', 'Model unreachable?', 'Who is calling?', 'Is the body sane?', 'Charge the quota', 'Log one line', 'Body too large or malformed?', 'Row’s aisle not in the live list?', 'Overlap clears the floor?', 'Name already in use?']);
-function loadDemo() {}
+function loadDemo() { if (!DEMO) return; st.proj = JSON.parse(JSON.stringify(DEMO)); st.proj.flows.forEach(linkScreen); st.proj.flows.forEach(f => (f.nodes || []).forEach(n => { if (n.kind === 'decision' && DEMO_PLUMBING.has(n.q)) n.seen = 'plumbing'; })); st.files = null; st.briefs = []; st.cases = {}; st.knobs = {}; st.reach = null; st.review = store.get('rb.review.' + DEMO.key, {}); st.view = 'map'; st.sel = null; st.src = 'demo'; store.set('rb.src', 'demo'); render(); window.scrollTo(0, 0); }
 
 // boot: where the viewer left off: the demo, their last analysis, or the landing page
 const lastSrc = store.get('rb.src', null), saved = store.get('rb.proj', null);
