@@ -74,7 +74,8 @@ export function checkTrace(t, comps, has, at = 'journey', needRead = true) {
   return { errs, warns };
 }
 // the code rules checklist (rules.md): every behaviour rule has a status; a broken one names where
-export function checkRules(r, has, at = 'rules') {
+// parts: the code came in parts, so "none" (no code in this part touches the rule) is allowed
+export function checkRules(r, has, at = 'rules', parts = false) {
   const errs = [], warns = [], seen = new Set();
   const rs = Array.isArray(r?.rules) ? r.rules : null;
   if (!rs) { errs.push(`${at}: "rules" must be a list.`); return { errs, warns }; }
@@ -84,11 +85,27 @@ export function checkRules(r, has, at = 'rules') {
     if (!x?.rule) errs.push(`${where}: no rule text.`); else if (words(x.rule) > 18) warns.push(`${where}: rule longer than 14 words.`);
     if (x?.kind !== 'style' && x?.kind !== 'behaviour') errs.push(`${where}: kind must be "behaviour" or "style".`);
     if (x?.kind === 'behaviour') {
-      if (!['kept', 'broken', 'unclear'].includes(x.status)) errs.push(`${where}: status must be "kept", "broken" or "unclear".`);
+      if (!['kept', 'broken', 'unclear', ...(parts ? ['none'] : [])].includes(x.status)) errs.push(`${where}: status must be "kept", "broken"${parts ? ', "unclear" or "none"' : ' or "unclear"'}.`);
       if (x.status === 'broken' && !(x.where || []).length) errs.push(`${where}: broken but no "where". Name the file and lines that break it, or make it "unclear".`);
-      if (x.status !== 'kept' && !x.why) errs.push(`${where}: no "why".`);
+      if (x.status !== 'kept' && x.status !== 'none' && !x.why) errs.push(`${where}: no "why".`);
     }
     for (const w of x?.where || []) if (!w?.file || !has(w.file)) errs.push(`${where}: file "${w?.file}" does not exist.`);
   }
+  return { errs, warns };
+}
+// a later part of the code rules check: the given rules judged on one more part of the code
+export function checkRulePart(r, ids, has, at = 'rules part') {
+  const errs = [], warns = [];
+  const rs = Array.isArray(r?.rules) ? r.rules : null;
+  if (!rs) { errs.push(`${at}: "rules" must be a list.`); return { errs, warns }; }
+  for (const x of rs) {
+    const where = `${at} rule "${x?.id}"`;
+    if (!ids.has(x?.id)) { warns.push(`${where}: not one of the given rules.`); continue; }
+    if (!['kept', 'broken', 'unclear', 'none'].includes(x.status)) errs.push(`${where}: status must be "kept", "broken", "unclear" or "none".`);
+    if (x.status === 'broken' && !(x.where || []).length) errs.push(`${where}: broken but no "where". Name the file and lines that break it, or make it "unclear".`);
+    for (const w of x.where || []) if (!w?.file || !has(w.file)) errs.push(`${where}: file "${w?.file}" does not exist.`);
+  }
+  const missing = [...ids].filter(id => !rs.some(x => x?.id === id));
+  if (missing.length) errs.push(`${at}: no entry for ${missing.slice(0, 10).join(', ')}. Give every rule a status ("none" when this part does not touch it).`);
   return { errs, warns };
 }
