@@ -23,16 +23,33 @@ const inline = ctx => import(pathToFileURL(path.join(engineDir(ctx), 'inline.mjs
 const look = () => vscode.workspace.getConfiguration('reviewBench').get('look') || 'plain';
 
 async function open(ctx) {
-  if (panel) return panel.reveal();
-  const root = vscode.workspace.workspaceFolders?.[0];
-  if (!root) return vscode.window.showInformationMessage('Review Bench reads the open folder. Open a folder first.');
+  const root = await pickFolder();
+  if (!root) return;
+  if (panel && same(panel.root, root)) return panel.reveal();
+  panel?.dispose();
   const { withEngine, withLook } = await inline(ctx);
-  panel = vscode.window.createWebviewPanel('reviewBench', 'Review Bench', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
-  panel.onDidDispose(() => { for (const c of running.values()) c.cancel(); running.clear(); panel = null; });
+  const many = vscode.workspace.workspaceFolders.length > 1;
+  panel = vscode.window.createWebviewPanel('reviewBench', many ? `Review Bench: ${root.name}` : 'Review Bench', vscode.ViewColumn.One, { enableScripts: true, retainContextWhenHidden: true });
+  const me = panel;
+  me.root = root; me.running = new Map(); me.gone = false;
+  me.onDidDispose(() => { me.gone = true; for (const c of me.running.values()) c.cancel(); me.running.clear(); if (panel === me) panel = null; });
   const app = withLook(withEngine(fs.readFileSync(path.join(engineDir(ctx), 'app.html'), 'utf8'), engineDir(ctx)), look(), engineDir(ctx));
-  panel.webview.html = withHost(app, ctx.workspaceState.get('rb', {}));
-  panel.webview.onDidReceiveMessage(m => onMessage(ctx, root, m));
+  me.webview.html = withHost(app, ctx.workspaceState.get(stateKey(root), {}));
+  me.webview.onDidReceiveMessage(m => onMessage(ctx, me, m));
 }
+
+// one folder: that one; several: ask which (the open one first); none: say so
+async function pickFolder() {
+  const all = vscode.workspace.workspaceFolders || [];
+  if (!all.length) return void vscode.window.showInformationMessage('Review Bench reads the open folder. Open a folder first.');
+  if (all.length === 1) return all[0];
+  const items = all.map(f => ({ label: f.name, description: panel && same(panel.root, f) ? 'open now' : '', detail: f.uri.fsPath, f }));
+  if (panel) items.sort((a, b) => same(b.f, panel.root) - same(a.f, panel.root));
+  return (await vscode.window.showQuickPick(items, { placeHolder: 'Which folder should Review Bench review?' }))?.f;
+}
+const same = (a, b) => a.uri.toString() === b.uri.toString();
+// each folder keeps its own progress
+const stateKey = root => 'rb:' + root.uri.toString();
 
 // what the page needs from its host, set before the page's own scripts run (see RB_HOST in the app)
 function withHost(html, state) {
@@ -61,14 +78,13 @@ function withHost(html, state) {
   return html.slice(0, at) + host + html.slice(at);
 }
 
-const running = new Map();
-async function onMessage(ctx, root, m) {
-  const post = x => panel?.webview.postMessage(x);
+async function onMessage(ctx, me, m) {
+  const root = me.root, running = me.running, post = x => me.gone || me.webview.postMessage(x);
   if (m.type === 'ready') {
     try { post({ type: 'files', ...(await readWorkspace(root)) }); }
     catch (e) { post({ type: 'files-error', message: String(e?.message || e) }); }
   } else if (m.type === 'store') {
-    const all = ctx.workspaceState.get('rb', {}); all[m.k] = m.v; await ctx.workspaceState.update('rb', all);
+    const k = stateKey(root), all = ctx.workspaceState.get(k, {}); all[m.k] = m.v; await ctx.workspaceState.update(k, all);
   } else if (m.type === 'ai') {
     const cts = new vscode.CancellationTokenSource(); running.set(m.id, cts);
     try { post({ type: 'ai-done', id: m.id, json: await askJson(m.prompt, cts.token, text => post({ type: 'ai-text', id: m.id, text })) }); }
