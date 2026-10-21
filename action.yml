@@ -95,6 +95,8 @@ runs:
       env:
         LOOK: ${{ inputs.look }}
         FRESH: ${{ inputs.fresh }}
+        RB_AGENT: ${{ inputs.agent }}
+        RB_MODEL: ${{ inputs.model }}
       run: |
         if [ "${{ steps.plan.outputs.run }}" = "true" ]; then
           node .loupe/engine/assemble.mjs check || echo "::warning::Check failed. Journeys without a valid trace keep last run's tree."
