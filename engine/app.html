@@ -1071,6 +1071,8 @@ document.documentElement.dataset.host = HOST;
 let sample = window.RB_AI || null;
 const sampleReady = sample ? Promise.resolve(sample) : HOST === 'claude'
   ? window.claude.use('sample').then(s => (sample = s)).catch(() => null) : Promise.resolve(null);
+// the model's input limit, when the host can say it: how much code one code rules request can carry
+sampleReady.then(s => s?.limit?.()).then(l => { if (l?.tokens) { st.aiLimit = l.tokens; if (st.view === RULES && typeof render === 'function' && st.proj) render(); } }).catch(() => {});
 
 // ---------- theme ----------
 function applyTheme(t) { if (t) document.documentElement.setAttribute('data-theme', t); else document.documentElement.removeAttribute('data-theme'); $('#themeBtn').textContent = t || 'system'; }
@@ -2411,39 +2413,83 @@ function cleanRules(c) {
       status: kind === 'style' ? null : ['kept', 'broken', 'unclear'].includes(r.status) ? r.status : 'unclear', why: t(r.why, 300),
       where: (Array.isArray(r.where) ? r.where : []).filter(w => w && w.file).slice(0, 12).map(w => ({ file: t(w.file, 300), lines: Array.isArray(w.lines) ? w.lines.slice(0, 2).map(Number).filter(Number.isFinite) : [] })) };
   });
-  return { at: c.at || null, by: t(c.by || AI, 60), docs: (Array.isArray(c.docs) ? c.docs : []).map(d => t(d, 300)).slice(0, 30), rules };
+  return { at: c.at || null, by: t(c.by || AI, 60), docs: (Array.isArray(c.docs) ? c.docs : []).map(d => t(d, 300)).slice(0, 30), parts: c.parts | 0 || 1, short: !!c.short, rules };
 }
-function rulesPrompt() {
-  const tree = [...st.files.keys()].map(p => `${p} (${st.files.get(p).split('\n').length})`).join('\n').slice(0, 20000);
-  let docs = ''; for (const d of st.ruleDocs) { const add = numbered(d.path, d.text, 40000) + '\n'; if (docs.length + add.length > 40000) { docs += add.slice(0, Math.max(0, 40000 - docs.length)) + '\n… (cut)\n'; break; } docs += add; }
-  let total = 0; for (const t of st.files.values()) total += t.length;
-  const code = total <= 165000 ? [...st.files].map(([p, t]) => numbered(p, t, 60000)).join('\n') : condense(st.files, 165000);
+// how much code one request can carry: the model's own input limit when the host says it (VS Code), else a safe default
+function rulesBudgetChars() {
+  const tok = st.aiLimit || 0;
+  return tok ? Math.floor(tok * 3 * 0.85) : HOST === 'claude' ? 400000 : 165000;
+}
+const rulesTree = () => [...st.files.keys()].map(p => `${p} (${st.files.get(p).split('\n').length})`).join('\n').slice(0, 20000);
+function rulesDocs() { let docs = ''; for (const d of st.ruleDocs) { const add = numbered(d.path, d.text, 40000) + '\n'; if (docs.length + add.length > 40000) { docs += add.slice(0, Math.max(0, 40000 - docs.length)) + '\n… (cut)\n'; break; } docs += add; } return docs; }
+// the code split into parts that each fit one request, whole files in path order (a folder's files stay together)
+const RULE_PARTS = 20;
+function rulesPlan() {
+  const fixed = ENGINE.prompts.rules.length + rulesDocs().length + rulesTree().length + 9000; // + the rule list later parts carry
+  const budget = Math.max(30000, rulesBudgetChars() - fixed), parts = []; let cur = [], size = 0;
+  for (const p of [...st.files.keys()].sort()) {
+    const t = st.files.get(p), n = Math.min(budget, t.length + t.split('\n').length * 6 + 40);
+    if (cur.length && size + n > budget) { parts.push(cur); cur = []; size = 0; }
+    cur.push(p); size += n;
+  }
+  if (cur.length) parts.push(cur);
+  // past the cap, the rest is read in its short form (start of each file and its function names) in one last part
+  const rest = parts.length > RULE_PARTS ? parts.splice(RULE_PARTS - 1).flat() : null;
+  return { budget, parts: parts.map(ps => ({ paths: ps })).concat(rest ? [{ paths: rest, short: true }] : []) };
+}
+function rulesPrompt(plan, k, list) {
+  const part = plan.parts[k], N = plan.parts.length;
+  const code = part.short ? condense(new Map(part.paths.map(p => [p, st.files.get(p)])), plan.budget) : part.paths.map(p => numbered(p, st.files.get(p), plan.budget)).join('\n');
   return `${ENGINE.prompts.rules}
 
 Reply with only the JSON, nothing else.
-
+${N > 1 ? `
+PART ${k + 1} of ${N}: the code below is one part of the repository; the other parts are checked separately.${k > 0 ? `
+RULES (judge exactly these on this part; reply {"rules":[{"id":"","status":"kept|broken|unclear|none","why":"","where":[{"file":"","lines":[1,2]}]}]} with one entry per rule)
+${list.map(r => `${r.id}: ${r.rule}`).join('\n')}` : ''}
+` : ''}
 INSTRUCTION FILES
-${docs}
+${rulesDocs()}
 FILE TREE (path, lines)
-${tree}
+${rulesTree()}
 
-CODE (line-numbered)
+CODE (line-numbered${N > 1 ? `, part ${k + 1} of ${N}` : ''})
 ${code}`;
+}
+// one rule over every part: broken anywhere wins, then can't tell, then kept; no part touching it at all is "can't tell"
+function mergeRuleParts(first, later) {
+  return first.map(r => {
+    if (r.kind === 'style') return r;
+    const all = [r, ...later.map(l => l.find(x => x && x.id === r.id)).filter(Boolean)];
+    const pick = st => all.filter(x => x.status === st), br = pick('broken'), un = pick('unclear'), ke = pick('kept');
+    const use = br.length ? br : un.length ? un : ke;
+    if (!use.length) return { ...r, status: 'unclear', why: 'No code in the folder touches this rule.', where: [] };
+    const whys = [...new Set(use.map(x => x.why).filter(Boolean))];
+    return { ...r, status: use[0].status, why: (br.length ? whys.slice(0, 2).join(' ') : whys[0]) || '', where: use.flatMap(x => x.where || []).slice(0, br.length ? 12 : 2) };
+  });
 }
 async function checkCodeRules() {
   if (st.busy || !sample || !st.files || !st.ruleDocs.length || st.proj.demo) return;
   st.busy = true; st.busyRules = true; render();
-  setStatus(`<span class="spinner"></span>Checking the code rules (<span id="kb">0</span> KB written)…`);
   try {
-    const r = await askChecked(rulesPrompt(), x => checkRules(x, hasFile));
-    const c = cleanRules({ rules: r?.rules, at: new Date().toISOString(), by: (sample && sample.lastModel) || AI, docs: st.ruleDocs.map(d => d.path) });
+    if (sample.limit) { const l = await sample.limit().catch(() => null); if (l?.tokens) st.aiLimit = l.tokens; }
+    const plan = rulesPlan(), N = plan.parts.length, step = k => { st.rulesPart = [k + 1, N]; setStatus(`<span class="spinner"></span>Checking the code rules${N > 1 ? `, part ${k + 1} of ${N}` : ''} (<span id="kb">0</span> KB written)…`); render(); };
+    step(0);
+    const r = await askChecked(rulesPrompt(plan, 0), x => checkRules(x, hasFile, 'rules', N > 1));
+    let rules = Array.isArray(r?.rules) ? r.rules : [];
+    if (N > 1) {
+      const list = rules.filter(x => x && x.kind !== 'style' && x.id), ids = new Set(list.map(x => x.id)), later = [];
+      for (let k = 1; k < N; k++) { step(k); const a = await askChecked(rulesPrompt(plan, k, list), x => checkRulePart(x, ids, hasFile)); later.push(Array.isArray(a?.rules) ? a.rules : []); }
+      rules = mergeRuleParts(rules, later);
+    }
+    const c = cleanRules({ rules, at: new Date().toISOString(), by: (sample && sample.lastModel) || AI, docs: st.ruleDocs.map(d => d.path), parts: N, short: plan.parts.some(x => x.short) });
     if (!c || !c.rules.length) throw { code: 'invalid_json' };
     st.proj.codeRules = c; persistProj();
     const n = rulesCount(c);
     setStatus(`Checked ${c.rules.length} code rules: ${n.broken} broken, ${n.unclear} can’t tell, ${n.kept} kept${n.style ? `, ${n.style} left to your linter` : ''}.`);
   } catch (e) {
     setStatus(e?.code === 'cancelled' ? 'Stopped.' : `<span class="err">${esc(ERR[e?.code] || 'Something went wrong talking to ' + AI + '. Try again.')}</span>`);
-  } finally { st.busy = false; st.busyRules = false; render(); }
+  } finally { st.busy = false; st.busyRules = false; st.rulesPart = null; render(); }
 }
 // a file and lines the code names: in VS Code it opens the file beside the page with those lines selected; here it shows the lines in place
 function excerpt(src, ln) {
@@ -2484,14 +2530,17 @@ const BUCKET_ICONS = [
 const bucketIcon = name => `<svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true">${(BUCKET_ICONS.find(([re]) => re.test(name)) || [, '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'])[1]}</svg>`;
 function renderRules() {
   const c = st.proj.codeRules, docs = st.ruleDocs || [], can = !!sample && !!st.files && !st.proj.demo && docs.length > 0;
+  const rulesCost = () => { const pl = rulesPlan(), N = pl.parts.length;
+    return N === 1 ? `One ${AI} request reads them and all the code in full, about the size of the map.` : `Your code is too big for one request, so ${AI} reads it in full in ${N} parts: <b>${N} ${AI} requests</b>, each about the size of the map.${pl.parts.some(x => x.short) ? ` The last part is very big, so it gets the start of each file and its function names only.` : ''}`; };
   const btn = (label, primary) => can ? `<button class="${primary ? 'btn primary' : 'linkbtn'}" type="button" data-rcheck ${st.busy ? 'disabled' : ''}>${label}</button>` : '';
-  const by = c ? `<p class="by">Checked with ${esc(c.by)} · ${esc(fmtWhen(c.at))}${can ? ' · ' + btn('Re-check rules') : ''}</p>` : '';
+  const parts = can ? rulesPlan().parts.length : 0;
+  const by = c ? `<p class="by">Checked with ${esc(c.by)} · ${esc(fmtWhen(c.at))}${c.parts > 1 ? ` · read in ${c.parts} parts` : ''}${can ? ' · ' + btn('Re-check rules' + (parts > 1 ? ` (${parts} requests)` : '')) : ''}</p>` : '';
   const head = `<section class="hero fhead"><div><div class="eyebrow">Checks · preview</div><h1>Code rules</h1><p class="lede">Your coding instructions as one checklist, checked against all the code. Green: the code follows the rule. Yellow: can’t tell from reading. Red: the code breaks it.</p>${by}</div></section>`;
-  if (st.busyRules) return head + `<div class="panel empty"><h3><span class="spinner"></span>Checking the code rules</h3><p>${AI} is reading ${docs.length} instruction file${docs.length === 1 ? '' : 's'} and the code. This takes about as long as the map.</p><div class="stream">${esc(st.streamText.slice(-600))}</div></div>`;
+  if (st.busyRules) return head + `<div class="panel empty"><h3><span class="spinner"></span>Checking the code rules${st.rulesPart && st.rulesPart[1] > 1 ? `, part ${st.rulesPart[0]} of ${st.rulesPart[1]}` : ''}</h3><p>${AI} is reading ${docs.length} instruction file${docs.length === 1 ? '' : 's'} and the code${st.rulesPart && st.rulesPart[1] > 1 ? `, one part per request` : ''}. Each request takes about as long as the map.</p><div class="stream">${esc(st.streamText.slice(-600))}</div></div>`;
   if (!c) {
     if (st.files && !docs.length) return head + `<div class="panel empty"><h3>No coding instructions found</h3><p>Looked for ${esc(RULE_LOOK)}.</p></div>`;
     if (!st.files) return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Open the code folder to check its coding instructions.</p></div>`;
-    return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Found ${docs.map(d => `<code>${esc(d.path)}</code>`).join(', ')}.</p><p>One ${AI} request reads them and all the code, about the size of the map.</p><p>${btn('Check code rules', true)}</p></div>`;
+    return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Found ${docs.map(d => `<code>${esc(d.path)}</code>`).join(', ')}.</p><p>${rulesCost()}</p><p>${btn('Check code rules', true)}</p></div>`;
   }
   const n = rulesCount(c), beh = c.rules.filter(r => r.kind !== 'style'), style = c.rules.filter(r => r.kind === 'style');
   const rank = { broken: 0, unclear: 1, kept: 2 }, base = x => String(x || '').split('/').pop();

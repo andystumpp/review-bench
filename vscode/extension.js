@@ -61,7 +61,9 @@ function withHost(html, state) {
   window.RB_AI = { json(prompt, o = {}) { return new Promise((ok, no) => {
     const id = ++n; wait[id] = { ok, no, onText: o.onText };
     if (o.signal) { if (o.signal.aborted) return no({ code: 'cancelled' }); o.signal.addEventListener('abort', () => vs.postMessage({ type: 'ai-stop', id })); }
-    vs.postMessage({ type: 'ai', id, prompt }); }); } };
+    vs.postMessage({ type: 'ai', id, prompt }); }); },
+    // the chosen model's input limit in tokens: how much code one request can carry
+    limit() { return new Promise(ok => { const id = ++n; wait[id] = { ok }; vs.postMessage({ type: 'ai-limit', id }); }); } };
   window.RB_STORE = { get: (k, d) => (k in state && state[k] != null ? state[k] : d), set: (k, v) => { state[k] = v; vs.postMessage({ type: 'store', k, v }); } };
   window.RB_FILES = new Promise((ok, no) => (files = { ok, no }));
   window.RB_SAVE = report => vs.postMessage({ type: 'save', report });
@@ -70,7 +72,8 @@ function withHost(html, state) {
     if (m.type === 'files') files.ok(m); else if (m.type === 'files-error') files.no(m);
     else if (m.type === 'ai-text') w?.onText?.({ text: m.text });
     else if (m.type === 'ai-done') { delete wait[m.id]; window.RB_AI.lastModel = m.model; w?.ok(m.json); }
-    else if (m.type === 'ai-error') { delete wait[m.id]; w?.no({ code: m.code, message: m.message }); } });
+    else if (m.type === 'ai-error') { delete wait[m.id]; w?.no({ code: m.code, message: m.message }); }
+    else if (m.type === 'ai-limit-done') { delete wait[m.id]; w?.ok({ tokens: m.tokens, model: m.model }); } });
   vs.postMessage({ type: 'ready' });
 })();
 </script>
@@ -92,6 +95,7 @@ async function onMessage(ctx, me, m) {
     catch (e) { post({ type: 'ai-error', id: m.id, code: e.code || 'error', message: String(e?.message || '') }); }
     finally { running.delete(m.id); cts.dispose(); }
   } else if (m.type === 'ai-stop') running.get(m.id)?.cancel();
+  else if (m.type === 'ai-limit') { let md = null; try { md = await model(); } catch {} post({ type: 'ai-limit-done', id: m.id, tokens: md?.maxInputTokens || 0, model: md ? md.name || md.family : '' }); }
   else if (m.type === 'save') save(ctx, root, m.report);
   else if (m.type === 'open') openAt(root, m.file, m.lines);
 }

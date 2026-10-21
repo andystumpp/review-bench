@@ -17,3 +17,8 @@ Rules:
 
 JSON shape:
 {"rules":[{"id":"r1","rule":"","bucket":"","from":"path of the instruction file","at":[1,1],"kind":"behaviour|style","status":"kept|broken|unclear","why":"","where":[{"file":"","lines":[1,2]}]}]}
+
+When the code comes in parts (a PART line below): big repositories are checked in parts and the results are merged.
+- Part 1: write the checklist from the instruction files as above, judging only the code in this part.
+- Later parts: you get the RULES list instead. Keep its ids, and judge only those rules on this part's code.
+- "none": no code in this part touches the rule. Use it instead of "unclear" when the code that decides the rule is simply not in this part; "unclear" stays for code that is shown but cannot tell.
