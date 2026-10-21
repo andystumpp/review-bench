@@ -1,0 +1,35 @@
+{
+  "name": "review-bench",
+  "displayName": "Review Bench",
+  "description": "Every decision your code makes, journey by journey, in plain words. Uses the Copilot you are signed in to.",
+  "version": "0.1.0",
+  "publisher": "andystumpp",
+  "license": "SEE LICENSE IN LICENSE",
+  "repository": { "type": "git", "url": "https://github.com/andystumpp/review-bench" },
+  "engines": { "vscode": "^1.90.0" },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "commands": [
+      { "command": "reviewBench.open", "title": "Review Bench: Open" },
+      { "command": "reviewBench.pickModel", "title": "Review Bench: Choose the model" }
+    ],
+    "configuration": {
+      "title": "Review Bench",
+      "properties": {
+        "reviewBench.model": {
+          "type": "string",
+          "default": "",
+          "description": "The Copilot model Review Bench uses, by its family name (for example claude-sonnet-4 or gpt-4.1). Empty picks one for you. \"Review Bench: Choose the model\" lists what you have."
+        },
+        "reviewBench.look": {
+          "type": "string",
+          "enum": ["plain", "full"],
+          "default": "plain",
+          "description": "plain: the quiet look, with Review Bench only in the footer. full: the Review Bench look with logo and colour."
+        }
+      }
+    }
+  }
+}

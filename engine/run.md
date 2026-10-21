@@ -11,17 +11,17 @@ Work only inside `.loupe/work/`. Never change any other file.
 
 ## 2. The map (only when `remap` is true)
 
-Follow `.loupe/engine/map.md` and write `.loupe/work/map.json`. When `remap` is false, the map in `context.md` stands; don't write one.
+Follow `.loupe/engine/map.md` and write the map to `.loupe/work/map.json`. The flows of the map in `context.md`, if there is one, are the PREVIOUS FLOWS. When `remap` is false, the map in `context.md` stands; don't write one.
 
 ## 3. Trace the journeys
 
-For every journey id in `retrace` (every journey in the map when it says `"all"`), follow `.loupe/engine/trace.md` and write `.loupe/work/flows/<journey id>.json`.
+For every journey id in `retrace` (every journey in the map when it says `"all"`), follow `.loupe/engine/trace.md` and write the journey to `.loupe/work/flows/<journey id>.json`.
 
 - Read the code the journey runs through. Start with the journey's `files` and the files of the components on its `path`, then follow calls into other files when a decision lives there. Read whole files; cite real line numbers.
-- If `.loupe/work/prev/<journey id>.txt` exists, it is that journey's tree from the last run. Update that tree, don't write a new one, as `trace.md` explains. This is what keeps the report stable from day to day.
+- If `.loupe/work/prev/<journey id>.txt` exists, it is that journey's PREVIOUS TREE from the last run. Update that tree, don't write a new one, as `trace.md` explains. This is what keeps the report stable from day to day.
 - Put every file you relied on in the journey's `"read"` list.
 - Trace one journey at a time and write its file as soon as it is done, before starting the next. The run has a spending limit; whatever is written when it runs out is kept, and the next run traces the rest.
 
 ## 4. Check your work
 
-Run `node .loupe/engine/assemble.mjs check`. It validates every file you wrote against the shapes in `map.md` and `trace.md`. Fix what it reports and run it again until it passes. Then stop; the workflow builds the report from your files.
+Run `node .loupe/engine/assemble.mjs check`. It is the check `trace.md` talks about: it validates every file you wrote against the shapes in `map.md` and `trace.md`. Fix what it reports and run it again until it passes. Then stop; the workflow builds the report from your files.
