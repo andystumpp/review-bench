@@ -324,7 +324,7 @@ body.fmin .fhead > div { opacity:0; transform:translateY(-8px) scale(.97); }
 /* code rules (preview): one checklist, a dot per rule, buckets from the instruction files */
 .rdot { display:inline-block; width:10px; height:10px; border-radius:50%; flex:none; background:var(--mint); }
 .s-unclear .rdot { background:#E0A100; } .s-broken .rdot { background:var(--coral); }
-.rsum { display:flex; flex-wrap:wrap; gap:8px 22px; margin:0 0 18px; font-size:14px; color:var(--muted); } .rsum > span { display:inline-flex; align-items:center; gap:8px; } .rsum b { color:var(--ink); } .rsum .rkeep { margin:0 0 0 auto; } .cr-hid { margin:0 0 4px; font-size:13.5px; color:var(--muted); } .cr-hid .linkbtn { font-size:13.5px; }
+.rsum { display:flex; flex-wrap:wrap; gap:8px 22px; margin:0 0 18px; font-size:14px; color:var(--muted); } .rsum > span { display:inline-flex; align-items:center; gap:8px; } .rsum b { color:var(--ink); } .rsum .rkeep { margin:0 0 0 auto; } .cr-fix { display:flex; align-items:center; flex-wrap:wrap; gap:6px 12px; margin:10px 0 0; } .cr-fix span { font-size:12.5px; color:var(--muted); } .cr-hid { margin:0 0 4px; font-size:13.5px; color:var(--muted); } .cr-hid .linkbtn { font-size:13.5px; }
 .rbucks { display:grid; gap:14px; }
 .crb .eyebrow { margin-bottom:4px; display:flex; align-items:center; gap:8px; }
 .cr-ico { width:16px; height:16px; flex:none; fill:none; stroke:var(--ink); stroke-width:1.75; stroke-linecap:round; stroke-linejoin:round; opacity:.75; }
@@ -1963,6 +1963,7 @@ function bindMain() {
   const keep = v => { st.hideKept = v; store.set('rb.hideKept', v); render(); };
   const ks = $('#keptSw'); if (ks) ks.onchange = () => keep(ks.checked);
   m.querySelectorAll('[data-showkept]').forEach(b => b.onclick = () => keep(false));
+  m.querySelectorAll('[data-rfix]').forEach(b => b.onclick = () => sendFix(b.dataset.rfix.split(' '), b));
   m.querySelectorAll('[data-goflow]').forEach(b => { const g = e => { e.stopPropagation(); go(b.dataset.goflow); }; b.onclick = g; b.onkeydown = e => { if (e.key === 'Enter') g(e); }; });
   m.querySelectorAll('.card[data-comp]').forEach(b => { b.onclick = () => openComp(b.dataset.comp); b.onkeydown = e => { if (e.key === 'Enter' && e.target === b) openComp(b.dataset.comp); }; });
   m.querySelectorAll('[data-edge]').forEach(b => b.onclick = e => { e.stopPropagation(); const [c, i] = b.dataset.edge.split(':'); openEdge(c, +i); });
@@ -2532,6 +2533,19 @@ const BUCKET_ICONS = [
   [/struct|architect|layer|module|organi|depend|pattern|design|folder/i, '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 12 10 5 10-5"/><path d="m2 17 10 5 10-5"/>'],
   [/^style$|lint|format|naming/i, '<path d="M9.06 11.9 17 4a2.1 2.1 0 0 1 3 3l-7.9 7.94"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>']];
 const bucketIcon = name => `<svg class="cr-ico" viewBox="0 0 24 24" aria-hidden="true">${(BUCKET_ICONS.find(([re]) => re.test(name)) || [, '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>'])[1]}</svg>`;
+// the request a broken rule hands to the builder's AI: rule, where it comes from, where and how the code breaks it
+function fixPrompt(rs) {
+  const span = l => l?.length ? (l[1] && l[1] !== l[0] ? `lines ${l[0]}–${l[1]}` : `line ${l[0]}`) : '';
+  return `Fix ${rs.length === 1 ? 'this break' : 'these breaks'} of the team's coding instructions in this repository. Change only what each rule needs and keep everything else working as it does now.\n\n` +
+    rs.map((r, i) => `${i + 1}. Rule: "${r.rule}" (from ${r.from}${r.at.length ? ', ' + span(r.at) : ''})\n   Broken at: ${r.where.map(w => w.file + (w.lines.length ? ' ' + span(w.lines) : '')).join('; ')}\n   What's wrong: ${r.why}`).join('\n\n') +
+    `\n\nWhen you're done, say per rule what you changed.`;
+}
+async function sendFix(ids, b) {
+  const c = st.proj.codeRules, rs = c.rules.filter(r => ids.includes(r.id)), t = fixPrompt(rs);
+  if (window.RB_FIX) window.RB_FIX(t);
+  else { try { await navigator.clipboard.writeText(t); } catch { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); } }
+  c.fixSent = c.fixSent || {}; ids.forEach(id => { c.fixSent[id] = new Date().toISOString(); }); persistProj(); render();
+}
 function renderRules() {
   const c = st.proj.codeRules, docs = st.ruleDocs || [], can = !!sample && !!st.files && !st.proj.demo && docs.length > 0;
   const rulesCost = () => { const pl = rulesPlan(), N = pl.parts.length;
@@ -2546,6 +2560,8 @@ function renderRules() {
     if (!st.files) return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Open the code folder to check its coding instructions.</p></div>`;
     return head + `<div class="panel empty"><h3>Not checked yet</h3><p>Found ${docs.map(d => `<code>${esc(d.path)}</code>`).join(', ')}.</p><p>${rulesCost()}</p><p>${btn('Check code rules', true)}</p></div>`;
   }
+  const fixLabel = window.RB_FIX ? `Fix with ${AI}` : 'Copy fix request', sent = c.fixSent || {};
+  const fixBtn = (ids, label) => `<div class="cr-fix"><button type="button" class="btn sm" data-rfix="${esc(ids.join(' '))}">${esc(label)}</button>${ids.every(id => sent[id]) ? `<span>Fix ${window.RB_FIX ? 'sent' : 'copied'} · ${esc(fmtWhen(ids.map(id => sent[id]).sort().pop()))}. Re-check rules to see if it holds.</span>` : ''}</div>`;
   const n = rulesCount(c), beh = c.rules.filter(r => r.kind !== 'style'), style = c.rules.filter(r => r.kind === 'style');
   const rank = { broken: 0, unclear: 1, kept: 2 }, base = x => String(x || '').split('/').pop();
   const hid = st.hideKept ? beh.filter(r => r.status === 'kept').length : 0;
@@ -2553,8 +2569,8 @@ function renderRules() {
   const worst = rs => Math.min(...rs.map(r => rank[r.status]));
   const fromLink = r => fileLink(r.from, r.at, base(r.from) + (r.at.length ? ':' + r.at[0] : ''), false, 'cr-from');
   const row = r => `<details class="crule s-${r.status}"${r.status === 'kept' ? '' : ' open'}><summary><span class="rdot" title="${r.status === 'kept' ? 'kept' : r.status === 'broken' ? 'broken' : 'can’t tell'}"></span><span class="cr-t">${esc(r.rule)}</span>${fromLink(r)}</summary>
-    <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => fileLink(w.file, w.lines, w.file + (w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''))).join('')}</div>` : ''}</div></details>`;
-  const sum = `<div class="rsum"><span class="s-broken"><span class="rdot"></span><b>${n.broken}</b> broken</span><span class="s-unclear"><span class="rdot"></span><b>${n.unclear}</b> can’t tell</span><span class="s-kept"><span class="rdot"></span><b>${n.kept}</b> kept</span>${n.kept ? `<label class="techsw rkeep"><input type="checkbox" id="keptSw"${st.hideKept ? ' checked' : ''}> Hide kept rules</label>` : ''}</div>`;
+    <div class="cr-b">${r.why ? `<p>${esc(r.why)}</p>` : ''}${r.where.length ? `<div class="cr-w">${r.where.map(w => fileLink(w.file, w.lines, w.file + (w.lines.length ? ':' + w.lines[0] + (w.lines[1] && w.lines[1] !== w.lines[0] ? '–' + w.lines[1] : '') : ''))).join('')}</div>` : ''}${r.status === 'broken' ? fixBtn([r.id], fixLabel) : ''}</div></details>`;
+  const sum = `<div class="rsum"><span class="s-broken"><span class="rdot"></span><b>${n.broken}</b> broken</span><span class="s-unclear"><span class="rdot"></span><b>${n.unclear}</b> can’t tell</span><span class="s-kept"><span class="rdot"></span><b>${n.kept}</b> kept</span>${n.broken > 1 ? `<button type="button" class="btn sm primary" data-rfix="${esc(beh.filter(r => r.status === 'broken').map(r => r.id).join(' '))}">${window.RB_FIX ? `Fix all ${n.broken} broken with ${AI}` : `Copy fix request for all ${n.broken}`}</button>` : ''}${n.kept ? `<label class="techsw rkeep"><input type="checkbox" id="keptSw"${st.hideKept ? ' checked' : ''}> Hide kept rules</label>` : ''}</div>`;
   const hidLine = hid ? `<p class="cr-hid">${hid} kept rule${hid === 1 ? '' : 's'} hidden · <button type="button" class="linkbtn" data-showkept>show</button></p>` : '';
   const list = Object.entries(buckets).sort((a, b) => worst(a[1]) - worst(b[1]) || b[1].length - a[1].length).map(([k, rs]) =>
     `<section class="panel crb"><div class="eyebrow">${bucketIcon(k)}${esc(k)} · ${rs.length}</div>${rs.sort((a, b) => rank[a.status] - rank[b.status]).map(row).join('')}</section>`).join('');

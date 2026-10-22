@@ -68,6 +68,7 @@ function withHost(html, state) {
   window.RB_FILES = new Promise((ok, no) => (files = { ok, no }));
   window.RB_SAVE = report => vs.postMessage({ type: 'save', report });
   window.RB_OPEN = (file, lines) => vs.postMessage({ type: 'open', file, lines });
+  window.RB_FIX = text => vs.postMessage({ type: 'fix', text });
   addEventListener('message', e => { const m = e.data || {}, w = wait[m.id];
     if (m.type === 'files') files.ok(m); else if (m.type === 'files-error') files.no(m);
     else if (m.type === 'ai-text') w?.onText?.({ text: m.text });
@@ -98,6 +99,7 @@ async function onMessage(ctx, me, m) {
   else if (m.type === 'ai-limit') { let md = null; try { md = await model(); } catch {} post({ type: 'ai-limit-done', id: m.id, tokens: md?.maxInputTokens || 0, model: md ? md.name || md.family : '' }); }
   else if (m.type === 'save') save(ctx, root, m.report);
   else if (m.type === 'open') openAt(root, m.file, m.lines);
+  else if (m.type === 'fix') fixInChat(m.text);
 }
 
 // a file the page names (a path inside the folder), opened beside the page with its lines selected
@@ -109,6 +111,16 @@ async function openAt(root, file, lines) {
     const last = doc.lineCount - 1, a = Math.min(last, Math.max(0, (lines?.[0] || 1) - 1)), b = Math.min(last, Math.max(a, (lines?.[1] || lines?.[0] || 1) - 1));
     await vscode.window.showTextDocument(doc, { viewColumn: vscode.ViewColumn.Beside, preview: true, selection: new vscode.Range(a, 0, b, doc.lineAt(b).text.length) });
   } catch { vscode.window.showErrorMessage(`Review Bench could not open ${file}.`); }
+}
+
+// a fix request goes into Copilot Chat in agent mode, typed in but not sent; Review Bench itself never edits code
+async function fixInChat(text) {
+  const query = String(text || '');
+  for (const o of [{ query, isPartialQuery: true, mode: 'agent' }, { query, isPartialQuery: true }]) {
+    try { await vscode.commands.executeCommand('workbench.action.chat.open', o); return; } catch {}
+  }
+  await vscode.env.clipboard.writeText(query);
+  vscode.window.showInformationMessage('Review Bench copied the fix request. Paste it into Copilot Chat in agent mode.');
 }
 
 // the workspace as the page's folder: every text file under 400 KB, paths under the folder's name like a picked folder
